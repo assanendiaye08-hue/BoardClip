@@ -1,0 +1,57 @@
+name: Release
+
+# Tag a release: `git tag v0.2.0 && git push --tags`
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Resolve version
+        id: v
+        run: echo "version=$(grep -Eo 'static let version = \"[^\"]+\"' Sources/BoardClip/App/AppInfo.swift | sed -E 's/.*\"([^\"]+)\".*/\1/')" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        run: ./Scripts/make-dmg.sh release
+
+      - name: Sign appcast (EdDSA)
+        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+        env:
+          KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          ./Scripts/sign-update.sh tools   # fetch the Sparkle CLI tools (no throwaway key)
+          TOOLS=.build/sparkle-tools/bin
+          mkdir -p updates
+          cp build/BoardClip-*.dmg updates/
+          printf '%s' "$KEY" > ed_key
+          "$TOOLS/generate_appcast" --ed-key-file ed_key \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
+            updates/
+          cp updates/appcast.xml build/appcast.xml
+          rm -f ed_key
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ASSETS=(build/BoardClip-*.dmg)
+          [ -f build/appcast.xml ] && ASSETS+=(build/appcast.xml)
+          gh release create "${{ github.ref_name }}" "${ASSETS[@]}" \
+            --title "BoardClip ${{ steps.v.outputs.version }}" \
+            --generate-notes
+
+# ── Optional: notarize for a Gatekeeper-clean first launch ──────────────────
+# Add these secrets and a notarize step when you have a paid Apple Developer account:
+#   APPLE_DEVELOPER_ID_P12 (base64), APPLE_DEVELOPER_ID_P12_PASSWORD,
+#   APPLE_NOTARY_KEY/_KEY_ID/_ISSUER  → import cert, set BOARDCLIP_SIGN_IDENTITY,
+#   then `xcrun notarytool submit --wait` + `xcrun stapler staple`.
