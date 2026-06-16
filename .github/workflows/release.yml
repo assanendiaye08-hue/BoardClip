@@ -10,12 +10,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # Requires the macOS 26 SDK (Liquid Glass APIs). Use the macOS 26 runner image;
+    # change to `macos-latest` once that maps to macOS 26 on your account.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.app 2>/dev/null || true
 
       - name: Resolve version
         id: v
@@ -43,12 +45,14 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           ASSETS=(build/BoardClip-*.dmg)
           [ -f build/appcast.xml ] && ASSETS+=(build/appcast.xml)
-          gh release create "${{ github.ref_name }}" "${ASSETS[@]}" \
-            --title "BoardClip ${{ steps.v.outputs.version }}" \
-            --generate-notes
+          # Idempotent: create the release, or update assets if it already exists.
+          gh release create "$TAG" "${ASSETS[@]}" \
+            --title "BoardClip ${{ steps.v.outputs.version }}" --generate-notes \
+            || gh release upload "$TAG" "${ASSETS[@]}" --clobber
 
 # ── Optional: notarize for a Gatekeeper-clean first launch ──────────────────
 # Add these secrets and a notarize step when you have a paid Apple Developer account:
