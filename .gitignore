@@ -20,3 +20,6 @@ ed25519_priv
 # Xcode (if you ever open it there)
 *.xcodeproj/xcuserdata/
 xcuserdata/
+
+# Local appcast staging
+updates/
