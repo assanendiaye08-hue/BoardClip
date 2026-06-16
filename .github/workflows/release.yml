@@ -1,6 +1,8 @@
 name: Release
 
-# Tag a release: `git tag v0.2.0 && git push --tags`
+# Cut a release: `git tag v0.2.0 && git push --tags`
+# Requires GitHub's macOS 26 runner image (Liquid Glass / macOS 26 SDK). Until that's available
+# on your account you can release locally with `Scripts/release.sh` instead.
 on:
   push:
     tags: ["v*"]
@@ -10,9 +12,10 @@ permissions:
 
 jobs:
   build:
-    # Requires the macOS 26 SDK (Liquid Glass APIs). Use the macOS 26 runner image;
-    # change to `macos-latest` once that maps to macOS 26 on your account.
     runs-on: macos-26
+    env:
+      # secrets aren't allowed directly in `if:` conditions — surface it as an env var instead.
+      SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,15 +30,13 @@ jobs:
         run: ./Scripts/make-dmg.sh release
 
       - name: Sign appcast (EdDSA)
-        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
-        env:
-          KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        if: ${{ env.SPARKLE_KEY != '' }}
         run: |
-          ./Scripts/sign-update.sh tools   # fetch the Sparkle CLI tools (no throwaway key)
+          ./Scripts/sign-update.sh tools   # fetch the Sparkle CLI tools
           TOOLS=.build/sparkle-tools/bin
           mkdir -p updates
           cp build/BoardClip-*.dmg updates/
-          printf '%s' "$KEY" > ed_key
+          printf '%s' "$SPARKLE_KEY" > ed_key
           "$TOOLS/generate_appcast" --ed-key-file ed_key \
             --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
             updates/
@@ -49,13 +50,11 @@ jobs:
         run: |
           ASSETS=(build/BoardClip-*.dmg)
           [ -f build/appcast.xml ] && ASSETS+=(build/appcast.xml)
-          # Idempotent: create the release, or update assets if it already exists.
           gh release create "$TAG" "${ASSETS[@]}" \
             --title "BoardClip ${{ steps.v.outputs.version }}" --generate-notes \
             || gh release upload "$TAG" "${ASSETS[@]}" --clobber
 
 # ── Optional: notarize for a Gatekeeper-clean first launch ──────────────────
-# Add these secrets and a notarize step when you have a paid Apple Developer account:
-#   APPLE_DEVELOPER_ID_P12 (base64), APPLE_DEVELOPER_ID_P12_PASSWORD,
-#   APPLE_NOTARY_KEY/_KEY_ID/_ISSUER  → import cert, set BOARDCLIP_SIGN_IDENTITY,
-#   then `xcrun notarytool submit --wait` + `xcrun stapler staple`.
+# With a paid Apple Developer account add secrets APPLE_DEVELOPER_ID_P12 (base64),
+# APPLE_DEVELOPER_ID_P12_PASSWORD, APPLE_NOTARY_KEY/_KEY_ID/_ISSUER, then import the cert,
+# set BOARDCLIP_SIGN_IDENTITY, and run `xcrun notarytool submit --wait` + `xcrun stapler staple`.
