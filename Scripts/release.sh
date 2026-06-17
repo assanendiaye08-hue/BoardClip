@@ -9,11 +9,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 TAG="${1:?usage: Scripts/release.sh vX.Y.Z}"
+VERSION="${TAG#v}"
 REPO="$(grep -Eo 'static let githubRepo = "[^"]+"' Sources/BoardClip/App/AppInfo.swift | sed -E 's/.*"([^"]+)".*/\1/')"
+APP_VERSION="$(grep -Eo 'static let version = "[^"]+"' Sources/BoardClip/App/AppInfo.swift | sed -E 's/.*"([^"]+)".*/\1/')"
+[ "$VERSION" = "$APP_VERSION" ] || { echo "✗ tag $TAG doesn't match AppInfo.version $APP_VERSION — bump it first"; exit 1; }
 
-echo "▸ Building release DMG…"
+echo "▸ Cleaning old DMGs and building release DMG…"
+rm -f build/BoardClip-*.dmg
 ./Scripts/make-dmg.sh release
-DMG="$(ls build/BoardClip-*.dmg | head -1)"
+# Use the exact version-named DMG (never glob+head — that can grab a stale older build).
+DMG="$ROOT/build/BoardClip-$VERSION.dmg"
+[ -f "$DMG" ] || { echo "✗ expected $DMG not found"; exit 1; }
 
 echo "▸ Generating EdDSA-signed appcast…"
 ./Scripts/sign-update.sh tools
