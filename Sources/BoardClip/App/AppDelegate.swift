@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.onNewDraft = { [weak self] draft in self?.store.ingest(draft) }
         monitor.start()
 
-        screenshotWatcher = ScreenshotWatcher(store: store)
+        screenshotWatcher = ScreenshotWatcher(store: store, settings: settings, monitor: monitor)
         if settings.watchScreenshots { screenshotWatcher?.start() }
 
         hud = HUDController(store: store, spaceStore: spaceStore, settings: settings, monitor: monitor)

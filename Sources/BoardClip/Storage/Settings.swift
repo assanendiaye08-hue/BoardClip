@@ -15,6 +15,7 @@ final class Settings {
     var retentionDays: Int { didSet { d.set(retentionDays, forKey: "retentionDays") } }
     var ignoreConcealed: Bool { didSet { d.set(ignoreConcealed, forKey: "ignoreConcealed") } }
     var watchScreenshots: Bool { didSet { d.set(watchScreenshots, forKey: "watchScreenshots") } }
+    var copyScreenshotsToClipboard: Bool { didSet { d.set(copyScreenshotsToClipboard, forKey: "copyScreenshotsToClipboard") } }
     var pasteAsPlainDefault: Bool { didSet { d.set(pasteAsPlainDefault, forKey: "pasteAsPlainDefault") } }
     var playSounds: Bool { didSet { d.set(playSounds, forKey: "playSounds") } }
 
@@ -30,6 +31,7 @@ final class Settings {
         retentionDays = (d.object(forKey: "retentionDays") as? Int) ?? 30
         ignoreConcealed = (d.object(forKey: "ignoreConcealed") as? Bool) ?? true
         watchScreenshots = (d.object(forKey: "watchScreenshots") as? Bool) ?? true
+        copyScreenshotsToClipboard = (d.object(forKey: "copyScreenshotsToClipboard") as? Bool) ?? true
         pasteAsPlainDefault = (d.object(forKey: "pasteAsPlainDefault") as? Bool) ?? false
         playSounds = (d.object(forKey: "playSounds") as? Bool) ?? false
         hotKeyCode = (d.object(forKey: "hotKeyCode") as? Int) ?? 9 // 'v'

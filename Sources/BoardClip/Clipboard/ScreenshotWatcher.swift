@@ -5,13 +5,17 @@ import AppKit
 @MainActor
 final class ScreenshotWatcher {
     private let store: HistoryStore
+    private let settings: Settings
+    private let monitor: ClipboardMonitor
     private var source: DispatchSourceFileSystemObject?
     private var known: Set<String> = []
     private let dirURL: URL
     private let namePrefix: String
 
-    init(store: HistoryStore) {
+    init(store: HistoryStore, settings: Settings, monitor: ClipboardMonitor) {
         self.store = store
+        self.settings = settings
+        self.monitor = monitor
         let d = UserDefaults(suiteName: "com.apple.screencapture")
         if let loc = d?.string(forKey: "location"), !loc.isEmpty {
             dirURL = URL(fileURLWithPath: (loc as NSString).expandingTildeInPath, isDirectory: true)
@@ -73,5 +77,18 @@ final class ScreenshotWatcher {
             fileURLs: nil, urlString: nil, colorHex: nil,
             sourceBundleID: nil, sourceAppName: "Screenshot", hash: png)
         store.ingest(draft)
+
+        // ⌘⇧4 only writes a file — it never touches the clipboard. Put the screenshot on the
+        // clipboard so a plain ⌘V pastes it immediately (no need to open BoardClip). Suppress the
+        // monitor so it doesn't re-capture our own write as a duplicate.
+        if settings.copyScreenshotsToClipboard {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            let item = NSPasteboardItem()
+            item.setData(png, forType: .png)
+            if let tiff = rep.tiffRepresentation { item.setData(tiff, forType: .tiff) }
+            pb.writeObjects([item])
+            monitor.suppressedChangeCount = pb.changeCount
+        }
     }
 }
