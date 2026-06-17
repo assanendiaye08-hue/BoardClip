@@ -6,5 +6,10 @@
          signed with different (or ad-hoc) identities. Required for Sparkle + hardened runtime. -->
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+
+    <!-- Hardened runtime blocks photo-library access without this; needed for "Save to Photos"
+         (the prompt won't even appear otherwise). -->
+    <key>com.apple.security.personal-information.photos-library</key>
+    <true/>
 </dict>
 </plist>

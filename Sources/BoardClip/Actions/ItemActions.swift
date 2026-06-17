@@ -4,20 +4,34 @@ import Photos
 /// Per-item smart actions surfaced in the HUD context menu.
 @MainActor
 enum ItemActions {
-    /// Save an image clip into the Photos library (add-only permission).
-    static func saveToPhotos(_ item: ClipItem, completion: ((Bool) -> Void)? = nil) {
-        guard item.kind == .image, let name = item.imageFileName else { completion?(false); return }
+    /// Save an image clip into the Photos library (add-only permission), with audible feedback.
+    /// On denied/missing permission it opens the Photos privacy pane so the user can grant access.
+    static func saveToPhotos(_ item: ClipItem) {
+        guard item.kind == .image, let name = item.imageFileName else { NSSound.beep(); return }
         let url = AppPaths.blobURL(name)
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-            guard status == .authorized || status == .limited else {
-                DispatchQueue.main.async { completion?(false) }
-                return
-            }
-            PHPhotoLibrary.shared().performChanges {
-                let req = PHAssetCreationRequest.forAsset()
-                req.addResource(with: .photo, fileURL: url, options: nil)
-            } completionHandler: { ok, _ in
-                DispatchQueue.main.async { completion?(ok) }
+            switch status {
+            case .authorized, .limited:
+                PHPhotoLibrary.shared().performChanges {
+                    PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
+                } completionHandler: { ok, error in
+                    DispatchQueue.main.async {
+                        if ok {
+                            NSSound(named: "Glass")?.play()
+                        } else {
+                            NSSound.beep()
+                            NSLog("[BoardClip] Save to Photos failed: \(error.map { String(describing: $0) } ?? "unknown")")
+                        }
+                    }
+                }
+            default:
+                DispatchQueue.main.async {
+                    NSSound.beep()
+                    NSLog("[BoardClip] Photos access not granted (status \(status.rawValue))")
+                    if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                        NSWorkspace.shared.open(u)
+                    }
+                }
             }
         }
     }

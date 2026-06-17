@@ -71,11 +71,13 @@ final class ScreenshotWatcher {
         let url = dirURL.appendingPathComponent(name)
         guard let raw = try? Data(contentsOf: url), let rep = NSBitmapImageRep(data: raw) else { return }
         let png = rep.representation(using: .png, properties: [:]) ?? raw
+        // Store the ORIGINAL file bytes (no re-encode) so the blob keeps full resolution, colour
+        // profile and DPI — that blob is exactly what "Save to Photos" writes into the library.
         let draft = PasteboardDraft(
-            kind: .image, text: nil, rtfData: nil, imagePNG: png,
+            kind: .image, text: nil, rtfData: nil, imagePNG: raw,
             imageWidth: rep.pixelsWide, imageHeight: rep.pixelsHigh,
             fileURLs: nil, urlString: nil, colorHex: nil,
-            sourceBundleID: nil, sourceAppName: "Screenshot", hash: png)
+            sourceBundleID: nil, sourceAppName: "Screenshot", hash: raw)
         store.ingest(draft)
 
         // ⌘⇧4 only writes a file — it never touches the clipboard. Put the screenshot on the
