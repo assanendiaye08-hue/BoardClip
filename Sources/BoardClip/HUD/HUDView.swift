@@ -41,11 +41,12 @@ struct HUDView: View {
     }
 
     var body: some View {
-        GlassEffectContainer {
+        let visible = filtered   // compute the fuzzy filter once per render, not 4×
+        return GlassEffectContainer {
             VStack(spacing: 12) {
-                header
+                header(count: visible.count)
                 spacePills
-                if filtered.isEmpty { emptyState } else { strip }
+                if visible.isEmpty { emptyState } else { strip(visible) }
                 footer
             }
             .padding(.horizontal, 18)
@@ -63,7 +64,7 @@ struct HUDView: View {
         .onChange(of: session.openCount) { _, _ in resetForOpen() }
         .onChange(of: search) { selected = 0 }
         .onChange(of: selectedSpace) { selected = 0 }
-        .onChange(of: filtered.count) { _, n in selected = min(selected, max(0, n - 1)) }
+        .onChange(of: visible.count) { _, n in selected = min(selected, max(0, n - 1)) }
     }
 
     private func resetForOpen() {
@@ -75,7 +76,7 @@ struct HUDView: View {
 
     // MARK: Header
 
-    private var header: some View {
+    private func header(count: Int) -> some View {
         HStack(spacing: 12) {
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -95,7 +96,7 @@ struct HUDView: View {
                 .foregroundStyle(.secondary)
             Spacer()
 
-            Text("\(filtered.count) clip\(filtered.count == 1 ? "" : "s")")
+            Text("\(count) clip\(count == 1 ? "" : "s")")
                 .font(.system(size: 12))
                 .foregroundStyle(.tertiary)
         }
@@ -139,10 +140,12 @@ struct HUDView: View {
 
     // MARK: Strip
 
-    private var strip: some View {
+    private func strip(_ items: [ClipItem]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, item in
+            // Lazy: only the visible cards (and their image decodes) are built, so opening the bar
+            // is O(visible) instead of O(history) — fast even with hundreds of clips.
+            LazyHStack(spacing: 12) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
                     Button { pasteItem(item) } label: {
                         ClipCardView(item: item, index: idx, selected: idx == selected)
                     }
