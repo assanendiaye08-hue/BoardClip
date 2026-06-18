@@ -23,12 +23,46 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
 # Version from AppInfo.swift.
 VERSION="$(grep -Eo 'static let version = "[^"]+"' Sources/BoardClip/App/AppInfo.swift | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
-[ -n "${VERSION:-}" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist" || true
+if [ -z "${VERSION:-}" ]; then
+  echo "✗ Could not read AppInfo.version" >&2
+  exit 1
+fi
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 
-# Monotonic build number — Sparkle compares CFBundleVersion, not the marketing version,
-# so this must increase every release or no update is ever offered.
-BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist" 2>/dev/null || true
+# Monotonic build number. Sparkle compares CFBundleVersion when deciding whether an
+# update is newer. Derive it from the marketing version instead of git history so
+# shallow CI checkouts cannot accidentally publish build 1 for every release.
+build_number_from_version() {
+  local major minor patch rest
+  IFS=. read -r major minor patch rest <<< "$1"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+
+  if [ -n "${rest:-}" ] || [[ ! "$major" =~ ^[0-9]+$ ]] || [[ ! "$minor" =~ ^[0-9]+$ ]] || [[ ! "$patch" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+
+  local build
+  build=$((10#$major * 1000000 + 10#$minor * 1000 + 10#$patch))
+  [ "$build" -ge 1 ] || return 1
+  printf '%d\n' "$build"
+}
+
+if [ -n "${BOARDCLIP_BUILD_NUMBER:-}" ]; then
+  if [[ ! "$BOARDCLIP_BUILD_NUMBER" =~ ^[0-9]+$ ]] || [ "$BOARDCLIP_BUILD_NUMBER" -lt 1 ]; then
+    echo "✗ BOARDCLIP_BUILD_NUMBER must be a positive integer" >&2
+    exit 1
+  fi
+  BUILD="$BOARDCLIP_BUILD_NUMBER"
+else
+  BUILD="$(build_number_from_version "$VERSION")" || {
+    echo "✗ AppInfo.version must be numeric major.minor.patch, got: $VERSION" >&2
+    exit 1
+  }
+fi
+
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist"
 
 # Derive the update feed from AppInfo.githubRepo (single source of truth).
 REPO="$(grep -Eo 'static let githubRepo = "[^"]+"' Sources/BoardClip/App/AppInfo.swift | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
