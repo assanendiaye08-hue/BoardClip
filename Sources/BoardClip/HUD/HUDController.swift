@@ -33,7 +33,13 @@ final class HUDController: NSObject, NSWindowDelegate {
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
-    func toggle() { isVisible ? hide() : show() }
+    func toggle() {
+        guard let panel, panel.isVisible, panel.isKeyWindow else {
+            show()
+            return
+        }
+        hide()
+    }
 
     func show() {
         // Remember what was focused so we can paste back into it. Never capture ourselves —
@@ -43,11 +49,13 @@ final class HUDController: NSObject, NSWindowDelegate {
             previousApp = front
         }
         let panel = makePanel()
+        panel.orderOut(nil)
         position(panel)
         session.openCount += 1   // tell the view to reset search/selection + refocus
         // Non-activating: the panel becomes key and receives keystrokes WITHOUT activating the app,
         // so the previously focused text field stays frontmost and paste-back is just ⌘V.
         panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     func hide() {

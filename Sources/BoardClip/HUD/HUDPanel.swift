@@ -18,7 +18,7 @@ final class HUDPanel: NSPanel {
         hidesOnDeactivate = false
         isMovableByWindowBackground = false
         animationBehavior = .utilityWindow
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .transient]
     }
 
     override var canBecomeKey: Bool { true }
