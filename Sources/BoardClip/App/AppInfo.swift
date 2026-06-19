@@ -6,7 +6,7 @@ enum AppInfo {
     static let bundleID = "com.boardclip.app"
 
     /// Marketing version (kept in sync with the bundle's Info.plist at package time).
-    static let version = "0.1.4"
+    static let version = "0.1.5"
 
     /// GitHub "owner/repo" — used for the update feed and "Report an issue".
     static let githubRepo = "assanendiaye08-hue/BoardClip"
