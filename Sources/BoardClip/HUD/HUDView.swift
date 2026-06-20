@@ -21,6 +21,7 @@ struct HUDView: View {
     @State private var search = ""
     @State private var selected = 0
     @State private var selectedSpace: UUID?
+    @State private var keyMonitor: Any?
     @FocusState private var searchFocused: Bool
 
     private var spaceFiltered: [ClipItem] {
@@ -60,7 +61,11 @@ struct HUDView: View {
         }
         .background(quickPasteButtons)
         .onExitCommand(perform: onClose)
-        .onAppear { resetForOpen() }
+        .onAppear {
+            resetForOpen()
+            installKeyMonitor()
+        }
+        .onDisappear { removeKeyMonitor() }
         .onChange(of: session.openCount) { _, _ in resetForOpen() }
         .onChange(of: search) { selected = 0 }
         .onChange(of: selectedSpace) { selected = 0 }
@@ -141,23 +146,28 @@ struct HUDView: View {
     // MARK: Strip
 
     private func strip(_ items: [ClipItem]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            // Lazy: only the visible cards (and their image decodes) are built, so opening the bar
-            // is O(visible) instead of O(history) — fast even with hundreds of clips.
-            LazyHStack(spacing: 12) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
-                    Button { pasteItem(item) } label: {
-                        ClipCardView(item: item, index: idx, selected: idx == selected)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                // Lazy: only the visible cards (and their image decodes) are built, so opening the bar
+                // is O(visible) instead of O(history) — fast even with hundreds of clips.
+                LazyHStack(spacing: 12) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                        Button { pasteItem(item) } label: {
+                            ClipCardView(item: item, index: idx, selected: idx == selected)
+                        }
+                        .buttonStyle(.plain)
+                        .id(item.id)
+                        .onHover { hovering in if hovering { selected = idx } }
+                        .contextMenu { contextMenu(for: item) }
                     }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in if hovering { selected = idx } }
-                    .contextMenu { contextMenu(for: item) }
                 }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 2)
             }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 2)
+            .frame(height: Design.cardHeight + 8)
+            .onChange(of: selected) { _, _ in scrollSelected(in: items, proxy: proxy) }
+            .onChange(of: items.map(\.id)) { _, _ in scrollSelected(in: items, proxy: proxy, animated: false) }
         }
-        .frame(height: Design.cardHeight + 8)
     }
 
     private var emptyState: some View {
@@ -183,6 +193,7 @@ struct HUDView: View {
         HStack(spacing: 16) {
             hint("⌘1–9", "Paste")
             hint("↩", "Paste selected")
+            hint("←/→", "Select")
             hint("⌥", "Paste as text")
             Spacer()
             hint("esc", "Close")
@@ -250,8 +261,60 @@ struct HUDView: View {
         pasteItem(filtered[min(selected, filtered.count - 1)])
     }
 
+    private func moveSelection(by delta: Int) {
+        guard !filtered.isEmpty else { return }
+        selected = min(max(selected + delta, 0), filtered.count - 1)
+    }
+
+    private func scrollSelected(in items: [ClipItem], proxy: ScrollViewProxy, animated: Bool = true) {
+        guard items.indices.contains(selected) else { return }
+        let action = { proxy.scrollTo(items[selected].id, anchor: .center) }
+        if animated {
+            withAnimation(.easeOut(duration: 0.12), action)
+        } else {
+            action()
+        }
+    }
+
     private func pasteItem(_ item: ClipItem) {
         let plain = settings.pasteAsPlainDefault != NSEvent.modifierFlags.contains(.option)
         onPaste(item, plain)
     }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyDown(event)
+        }
+    }
+
+    private func removeKeyMonitor() {
+        guard let keyMonitor else { return }
+        NSEvent.removeMonitor(keyMonitor)
+        self.keyMonitor = nil
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        guard event.window is HUDPanel || NSApp.keyWindow is HUDPanel else { return event }
+        let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+        guard event.modifierFlags.intersection(blockedModifiers).isEmpty else { return event }
+
+        switch event.keyCode {
+        case HUDKeyCode.leftArrow, HUDKeyCode.upArrow:
+            moveSelection(by: -1)
+            return nil
+        case HUDKeyCode.rightArrow, HUDKeyCode.downArrow:
+            moveSelection(by: 1)
+            return nil
+        default:
+            return event
+        }
+    }
+}
+
+private enum HUDKeyCode {
+    static let leftArrow: UInt16 = 123
+    static let rightArrow: UInt16 = 124
+    static let downArrow: UInt16 = 125
+    static let upArrow: UInt16 = 126
 }
