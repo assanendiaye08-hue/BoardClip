@@ -135,6 +135,7 @@ final class HistoryStore {
     func setSpaces(_ ids: [UUID], for item: ClipItem) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[idx].spaceIDs = ids
+        pruneSpaceNotes(at: idx)
         scheduleSave()
     }
 
@@ -146,12 +147,32 @@ final class HistoryStore {
         } else {
             items[idx].spaceIDs.append(spaceID)
         }
+        pruneSpaceNotes(at: idx)
+        scheduleSave()
+    }
+
+    func setSpaceNote(_ note: String?, for item: ClipItem, in spaceID: UUID) {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let key = spaceID.uuidString
+        var notes = items[idx].spaceNotes ?? [:]
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if trimmed.isEmpty {
+            notes.removeValue(forKey: key)
+        } else {
+            notes[key] = trimmed
+        }
+        items[idx].spaceNotes = notes.isEmpty ? nil : notes
         scheduleSave()
     }
 
     /// Strip references to a deleted Space.
     func removeSpaceReference(_ spaceID: UUID) {
-        for i in items.indices { items[i].spaceIDs.removeAll { $0 == spaceID } }
+        for i in items.indices {
+            items[i].spaceIDs.removeAll { $0 == spaceID }
+            items[i].spaceNotes?.removeValue(forKey: spaceID.uuidString)
+            if items[i].spaceNotes?.isEmpty == true { items[i].spaceNotes = nil }
+        }
         scheduleSave()
     }
 
@@ -190,6 +211,13 @@ final class HistoryStore {
         if let name = item.imageFileName {
             try? FileManager.default.removeItem(at: AppPaths.blobURL(name))
         }
+    }
+
+    private func pruneSpaceNotes(at index: Int) {
+        guard var notes = items[index].spaceNotes else { return }
+        let spaceKeys = Set(items[index].spaceIDs.map(\.uuidString))
+        notes = notes.filter { spaceKeys.contains($0.key) }
+        items[index].spaceNotes = notes.isEmpty ? nil : notes
     }
 
     private func byteSize(of d: PasteboardDraft) -> Int {

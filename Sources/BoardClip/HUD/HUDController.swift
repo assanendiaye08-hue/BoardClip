@@ -78,6 +78,7 @@ final class HUDController: NSObject, NSWindowDelegate {
             onTogglePin: { [weak self] item in self?.store.togglePin(item) },
             onDelete: { [weak self] item in self?.store.delete(item) },
             onToggleSpace: { [weak self] sid, item in self?.store.toggleSpace(sid, for: item) },
+            onEditSpaceNote: { [weak self] item, sid in self?.editSpaceNote(item, in: sid) },
             onSaveToPhotos: { item in ItemActions.saveToPhotos(item) },
             onResearch: { [weak self] item in self?.hide(); ItemActions.research(item) },
             onReveal: { [weak self] item in self?.hide(); ItemActions.revealInFinder(item) },
@@ -140,6 +141,30 @@ final class HUDController: NSObject, NSWindowDelegate {
         if response == .alertFirstButtonReturn {
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if !name.isEmpty { spaceStore.add(name: name) }
+        }
+        panel?.makeKeyAndOrderFront(nil)
+    }
+
+    private func editSpaceNote(_ item: ClipItem, in spaceID: UUID) {
+        let alert = NSAlert()
+        alert.messageText = item.note(in: spaceID) == nil ? "Add Note" : "Edit Note"
+        alert.informativeText = "This note replaces the source label on the clip card in this Space. Leave it blank to show the source again."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.placeholderString = item.sourceAppName ?? item.kind.label
+        field.stringValue = item.note(in: spaceID) ?? ""
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        modalActive = true
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        modalActive = false
+
+        if response == .alertFirstButtonReturn {
+            store.setSpaceNote(field.stringValue, for: item, in: spaceID)
         }
         panel?.makeKeyAndOrderFront(nil)
     }
