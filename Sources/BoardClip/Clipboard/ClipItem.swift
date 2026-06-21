@@ -42,6 +42,8 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
     var pinned: Bool = false
     /// Spaces (durable boards) this clip has been saved into. Non-empty => never auto-cleaned.
     var spaceIDs: [UUID] = []
+    /// Optional per-Space note shown on the card instead of the source app label.
+    var spaceNotes: [String: String]?
 
     var sourceBundleID: String?
     var sourceAppName: String?
@@ -80,5 +82,12 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
             if urls.count == 1 { return (urls.first.map { URL(fileURLWithPath: $0).lastPathComponent }) ?? "File" }
             return "\(urls.count) files"
         }
+    }
+
+    func note(in spaceID: UUID?) -> String? {
+        guard let key = spaceID?.uuidString,
+              let note = spaceNotes?[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !note.isEmpty else { return nil }
+        return note
     }
 }

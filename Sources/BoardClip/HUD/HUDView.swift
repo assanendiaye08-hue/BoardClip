@@ -13,6 +13,7 @@ struct HUDView: View {
     var onTogglePin: (ClipItem) -> Void
     var onDelete: (ClipItem) -> Void
     var onToggleSpace: (UUID, ClipItem) -> Void
+    var onEditSpaceNote: (ClipItem, UUID) -> Void
     var onSaveToPhotos: (ClipItem) -> Void
     var onResearch: (ClipItem) -> Void
     var onReveal: (ClipItem) -> Void
@@ -34,7 +35,7 @@ struct HUDView: View {
         guard !search.isEmpty else { return base }
         return base
             .compactMap { item -> (ClipItem, Int)? in
-                let hay = "\(item.preview) \(item.sourceAppName ?? "") \(item.kind.label)"
+                let hay = "\(item.preview) \(item.note(in: selectedSpace) ?? "") \(item.sourceAppName ?? "") \(item.kind.label)"
                 return Fuzzy.score(search, in: hay).map { (item, $0) }
             }
             .sorted { $0.1 > $1.1 }
@@ -153,7 +154,12 @@ struct HUDView: View {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
                         Button { pasteItem(item) } label: {
-                            ClipCardView(item: item, index: idx, selected: idx == selected)
+                            ClipCardView(
+                                item: item,
+                                index: idx,
+                                selected: idx == selected,
+                                spaceNote: item.note(in: selectedSpace)
+                            )
                         }
                         .buttonStyle(.plain)
                         .id(item.id)
@@ -235,6 +241,11 @@ struct HUDView: View {
             }
         }
         Divider()
+        if let selectedSpace {
+            Button(item.note(in: selectedSpace) == nil ? "Add Note" : "Edit Note") {
+                onEditSpaceNote(item, selectedSpace)
+            }
+        }
         Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
         if !spaceStore.spaces.isEmpty {
             Menu("Add to Space") {

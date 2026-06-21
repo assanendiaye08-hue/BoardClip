@@ -5,8 +5,10 @@ struct ClipCardView: View {
     let item: ClipItem
     let index: Int          // 0-based position in the visible list
     let selected: Bool
+    let spaceNote: String?
 
     private var shortcutBadge: String? { index < 9 ? "⌘\(index + 1)" : nil }
+    private var headerTitle: String { spaceNote ?? item.sourceAppName ?? item.kind.label }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,7 +28,7 @@ struct ClipCardView: View {
             Image(systemName: item.kind.systemImage)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-            Text(item.sourceAppName ?? item.kind.label)
+            Text(headerTitle)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
