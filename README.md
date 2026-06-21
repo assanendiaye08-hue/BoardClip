@@ -51,6 +51,8 @@ make run          # build, bundle, and launch
 make release      # release build → build/BoardClip.app
 make dmg          # build a distributable DMG
 make cert         # (once) create a stable self-signed identity so permissions persist across rebuilds
+Scripts/export-codesign-secret.sh
+                  # (once) upload that identity to GitHub Actions so updates keep Accessibility permission
 ```
 
 The app builds with Swift Package Manager and is assembled into a `.app` by `Scripts/bundle.sh`
@@ -58,11 +60,18 @@ The app builds with Swift Package Manager and is assembled into a `.app` by `Scr
 
 ## Releasing
 
-1. **One-time:** `Scripts/sign-update.sh keygen` → put the printed `SUPublicEDKey` into
+1. **One-time:** create and upload a stable code-signing identity:
+   ```sh
+   make cert
+   Scripts/export-codesign-secret.sh
+   ```
+   This keeps macOS Accessibility permission stable across updates. Without it, releases fall back
+   to ad-hoc signing and macOS may make users remove/re-add BoardClip in Accessibility settings.
+2. **One-time:** `Scripts/sign-update.sh keygen` → put the printed `SUPublicEDKey` into
    `Resources/Info.plist`, set `SUFeedURL` to your repo's `releases/latest/download/appcast.xml`,
    and edit `AppInfo.githubRepo`. Export the private key and add it to the repo secret
    `SPARKLE_ED_PRIVATE_KEY`.
-2. **Each release:** bump `AppInfo.version`, then:
+3. **Each release:** bump `AppInfo.version`, then:
    ```sh
    git tag v0.2.0 && git push --tags
    ```

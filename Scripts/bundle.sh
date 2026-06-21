@@ -88,6 +88,11 @@ IDENTITY="${BOARDCLIP_SIGN_IDENTITY:-BoardClip Dev}"
 if security find-identity -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
   SIGN_ID="$IDENTITY"; echo "▸ Signing with identity: $IDENTITY"
 else
+  if [ "${BOARDCLIP_REQUIRE_SIGNING:-0}" = "1" ]; then
+    echo "✗ Signing identity '$IDENTITY' not found" >&2
+    echo "  Run Scripts/make-cert.sh locally, then add BOARDCLIP_CODESIGN_P12 and BOARDCLIP_CODESIGN_P12_PASSWORD secrets for CI." >&2
+    exit 1
+  fi
   SIGN_ID="-"; echo "▸ Signing ad-hoc (run Scripts/make-cert.sh for a stable identity)"
 fi
 
