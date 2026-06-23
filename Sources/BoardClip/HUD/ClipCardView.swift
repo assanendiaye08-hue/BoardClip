@@ -8,6 +8,7 @@ struct ClipCardView: View {
     let spaceNote: String?
 
     private var shortcutBadge: String? { index < 9 ? "⌘\(index + 1)" : nil }
+    private var hasSpaceNote: Bool { spaceNote != nil }
     private var headerTitle: String { spaceNote ?? item.sourceAppName ?? item.kind.label }
 
     var body: some View {
@@ -29,8 +30,8 @@ struct ClipCardView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text(headerTitle)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: hasSpaceNote ? .semibold : .medium))
+                .foregroundStyle(hasSpaceNote ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
             Spacer(minLength: 4)
             if item.pinned {
