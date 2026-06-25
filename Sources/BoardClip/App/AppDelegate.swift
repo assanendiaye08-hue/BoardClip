@@ -61,6 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store?.flush()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if settings.showMenuBarIcon {
+            showHUD()
+        } else {
+            showSettings()
+        }
+        return true
+    }
+
     // MARK: Public hooks (used by Settings / menu)
 
     func reloadHotKey() {

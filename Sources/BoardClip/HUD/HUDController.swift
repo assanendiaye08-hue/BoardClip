@@ -82,7 +82,8 @@ final class HUDController: NSObject, NSWindowDelegate {
             onSaveToPhotos: { item in ItemActions.saveToPhotos(item) },
             onResearch: { [weak self] item in self?.hide(); ItemActions.research(item) },
             onReveal: { [weak self] item in self?.hide(); ItemActions.revealInFinder(item) },
-            onTransformPaste: { [weak self] item, transform in self?.transformPaste(item, transform) }
+            onTransformPaste: { [weak self] item, transform in self?.transformPaste(item, transform) },
+            onSettings: { [weak self] in self?.showSettings() }
         )
 
         let hosting = NSHostingView(rootView: view)
@@ -120,6 +121,11 @@ final class HUDController: NSObject, NSWindowDelegate {
         temp.text = transform.apply(item.bestPlainText)
         hide()
         Paster.paste(temp, asPlainText: true, previousApp: previousApp, monitor: monitor, store: store)
+    }
+
+    private func showSettings() {
+        hide()
+        SettingsWindow.show()
     }
 
     private func addSpace() {

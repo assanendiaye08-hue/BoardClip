@@ -33,6 +33,9 @@ private struct GeneralSettings: View {
             Section {
                 Toggle("Launch BoardClip at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, v in LaunchAtLogin.set(v) }
+                Toggle("Show menu bar icon", isOn: $settings.showMenuBarIcon)
+                Text("When hidden, open BoardClip with your shortcut, then click the gear or press ⌘, for Settings.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Capture ⌘⇧4 screenshots automatically", isOn: $settings.watchScreenshots)
                     .onChange(of: settings.watchScreenshots) { _, v in AppDelegate.shared?.setScreenshotWatching(v) }
             }
@@ -44,7 +47,7 @@ private struct GeneralSettings: View {
             Section("Clip Bar") {
                 VStack(alignment: .leading) {
                     Text("Mouse scroll speed \(Int(settings.clipScrollSensitivity * 100))%")
-                    Slider(value: $settings.clipScrollSensitivity, in: 0.20...1.00, step: 0.05) {
+                    Slider(value: $settings.clipScrollSensitivity, in: 0.10...1.00, step: 0.05) {
                         Text("Mouse scroll speed")
                     } minimumValueLabel: { Text("Slow") } maximumValueLabel: { Text("Fast") }
                 }

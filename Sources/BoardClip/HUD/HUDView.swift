@@ -18,6 +18,7 @@ struct HUDView: View {
     var onResearch: (ClipItem) -> Void
     var onReveal: (ClipItem) -> Void
     var onTransformPaste: (ClipItem, ItemActions.Transform) -> Void
+    var onSettings: () -> Void
 
     @State private var search = ""
     @State private var selected = 0
@@ -113,9 +114,20 @@ struct HUDView: View {
                 .foregroundStyle(.secondary)
             Spacer()
 
-            Text("\(count) clip\(count == 1 ? "" : "s")")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+            HStack(spacing: 10) {
+                Text("\(count) clip\(count == 1 ? "" : "s")")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                Button(action: onSettings) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .background(.white.opacity(0.08), in: Circle())
+                .foregroundStyle(.secondary)
+                .help("Settings")
+            }
         }
     }
 
@@ -222,6 +234,7 @@ struct HUDView: View {
             hint("↩", "Paste selected")
             hint("←/→", "Select")
             hint("⌥", "Paste as text")
+            hint("⌘,", "Settings")
             Spacer()
             hint("esc", "Close")
         }
@@ -242,9 +255,14 @@ struct HUDView: View {
     // MARK: Hidden ⌘1–9 shortcuts
 
     private var quickPasteButtons: some View {
-        ForEach(0..<9, id: \.self) { i in
-            Button("") { if i < filtered.count { pasteItem(filtered[i]) } }
-                .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
+        Group {
+            ForEach(0..<9, id: \.self) { i in
+                Button("") { if i < filtered.count { pasteItem(filtered[i]) } }
+                    .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
+                    .opacity(0)
+            }
+            Button("") { onSettings() }
+                .keyboardShortcut(",", modifiers: .command)
                 .opacity(0)
         }
     }
