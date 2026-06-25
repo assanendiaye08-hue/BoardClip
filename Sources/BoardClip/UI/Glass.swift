@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Shared design tokens and Liquid Glass helpers.
 enum Design {
@@ -66,5 +67,40 @@ struct ClipThumbnail: View {
             let url = AppPaths.blobURL(fileName)
             image = await Task.detached { NSImage(contentsOf: url) }.value
         }
+    }
+}
+
+struct ClipScrollSensitivityTuner: NSViewRepresentable {
+    let sensitivity: Double
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        tune(afterMounting: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        tune(afterMounting: nsView)
+    }
+
+    private func tune(afterMounting view: NSView) {
+        DispatchQueue.main.async {
+            guard let scrollView = enclosingScrollView(for: view) else { return }
+            let speed = max(0.20, min(1.00, sensitivity))
+            let lineDistance = CGFloat(28 * speed)
+            scrollView.horizontalLineScroll = lineDistance
+            scrollView.verticalLineScroll = lineDistance
+            scrollView.horizontalPageScroll = Design.cardWidth * CGFloat(speed)
+            scrollView.verticalPageScroll = Design.cardWidth * CGFloat(speed)
+        }
+    }
+
+    private func enclosingScrollView(for view: NSView) -> NSScrollView? {
+        var current = view.superview
+        while let view = current {
+            if let scrollView = view as? NSScrollView { return scrollView }
+            current = view.superview
+        }
+        return nil
     }
 }
