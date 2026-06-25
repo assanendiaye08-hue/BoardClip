@@ -41,6 +41,14 @@ private struct GeneralSettings: View {
                 Text("Hold ⌥ while choosing a clip to invert this.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Clip Bar") {
+                VStack(alignment: .leading) {
+                    Text("Mouse scroll speed \(Int(settings.clipScrollSensitivity * 100))%")
+                    Slider(value: $settings.clipScrollSensitivity, in: 0.20...1.00, step: 0.05) {
+                        Text("Mouse scroll speed")
+                    } minimumValueLabel: { Text("Slow") } maximumValueLabel: { Text("Fast") }
+                }
+            }
             Section {
                 Toggle("Play a sound when capturing", isOn: $settings.playSounds)
             }

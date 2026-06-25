@@ -22,6 +22,7 @@ struct HUDView: View {
     @State private var search = ""
     @State private var selected = 0
     @State private var selectedSpace: UUID?
+    @State private var shouldCenterSelectedClip = false
     @State private var keyMonitor: Any?
     @FocusState private var searchFocused: Bool
 
@@ -68,15 +69,25 @@ struct HUDView: View {
         }
         .onDisappear { removeKeyMonitor() }
         .onChange(of: session.openCount) { _, _ in resetForOpen() }
-        .onChange(of: search) { selected = 0 }
-        .onChange(of: selectedSpace) { selected = 0 }
-        .onChange(of: visible.count) { _, n in selected = min(selected, max(0, n - 1)) }
+        .onChange(of: search) {
+            shouldCenterSelectedClip = false
+            selected = 0
+        }
+        .onChange(of: selectedSpace) {
+            shouldCenterSelectedClip = false
+            selected = 0
+        }
+        .onChange(of: visible.count) { _, n in
+            shouldCenterSelectedClip = false
+            selected = min(selected, max(0, n - 1))
+        }
     }
 
     private func resetForOpen() {
         search = ""
         selectedSpace = nil
         selected = 0
+        shouldCenterSelectedClip = false
         searchFocused = true
     }
 
@@ -163,7 +174,12 @@ struct HUDView: View {
                         }
                         .buttonStyle(.plain)
                         .id(item.id)
-                        .onHover { hovering in if hovering { selected = idx } }
+                        .onHover { hovering in
+                            if hovering {
+                                shouldCenterSelectedClip = false
+                                selected = idx
+                            }
+                        }
                         .contextMenu { contextMenu(for: item) }
                     }
                 }
@@ -171,7 +187,12 @@ struct HUDView: View {
                 .padding(.vertical, 2)
             }
             .frame(height: Design.cardHeight + 8)
-            .onChange(of: selected) { _, _ in scrollSelected(in: items, proxy: proxy) }
+            .background(ClipScrollSensitivityTuner(sensitivity: settings.clipScrollSensitivity))
+            .onChange(of: selected) { _, _ in
+                guard shouldCenterSelectedClip else { return }
+                shouldCenterSelectedClip = false
+                scrollSelected(in: items, proxy: proxy)
+            }
             .onChange(of: items.map(\.id)) { _, _ in scrollSelected(in: items, proxy: proxy, animated: false) }
         }
     }
@@ -274,7 +295,10 @@ struct HUDView: View {
 
     private func moveSelection(by delta: Int) {
         guard !filtered.isEmpty else { return }
-        selected = min(max(selected + delta, 0), filtered.count - 1)
+        let next = min(max(selected + delta, 0), filtered.count - 1)
+        guard next != selected else { return }
+        shouldCenterSelectedClip = true
+        selected = next
     }
 
     private func scrollSelected(in items: [ClipItem], proxy: ScrollViewProxy, animated: Bool = true) {

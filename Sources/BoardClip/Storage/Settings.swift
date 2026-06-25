@@ -17,6 +17,7 @@ final class Settings {
     var watchScreenshots: Bool { didSet { d.set(watchScreenshots, forKey: "watchScreenshots") } }
     var copyScreenshotsToClipboard: Bool { didSet { d.set(copyScreenshotsToClipboard, forKey: "copyScreenshotsToClipboard") } }
     var pasteAsPlainDefault: Bool { didSet { d.set(pasteAsPlainDefault, forKey: "pasteAsPlainDefault") } }
+    var clipScrollSensitivity: Double { didSet { d.set(clipScrollSensitivity, forKey: "clipScrollSensitivity") } }
     var playSounds: Bool { didSet { d.set(playSounds, forKey: "playSounds") } }
 
     /// Global hotkey. `keyCode` is a virtual key code; `modifiers` is `NSEvent.ModifierFlags.rawValue`.
@@ -33,6 +34,7 @@ final class Settings {
         watchScreenshots = (d.object(forKey: "watchScreenshots") as? Bool) ?? true
         copyScreenshotsToClipboard = (d.object(forKey: "copyScreenshotsToClipboard") as? Bool) ?? true
         pasteAsPlainDefault = (d.object(forKey: "pasteAsPlainDefault") as? Bool) ?? false
+        clipScrollSensitivity = (d.object(forKey: "clipScrollSensitivity") as? Double) ?? 0.45
         playSounds = (d.object(forKey: "playSounds") as? Bool) ?? false
         hotKeyCode = (d.object(forKey: "hotKeyCode") as? Int) ?? 9 // 'v'
         hotKeyModifiers = (d.object(forKey: "hotKeyModifiers") as? Int)
