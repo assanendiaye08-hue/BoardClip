@@ -18,7 +18,7 @@ struct MenuBarContent: View {
 
         Divider()
 
-        SettingsLink { Text("Settings…") }
+        Button("Settings…") { AppDelegate.shared?.showSettings() }
             .keyboardShortcut(",", modifiers: .command)
         Button("Welcome / Setup…") { AppDelegate.shared?.showOnboarding() }
         Button("Check for Updates…") { AppDelegate.shared?.checkForUpdates() }

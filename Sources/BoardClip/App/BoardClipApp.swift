@@ -9,9 +9,5 @@ struct BoardClipApp: App {
             MenuBarContent()
         }
         .menuBarExtraStyle(.menu)
-
-        SwiftUI.Settings {
-            SettingsView()
-        }
     }
 }
