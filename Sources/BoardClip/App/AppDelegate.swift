@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showHUD() { hud?.show() }
 
+    func showSettings() { SettingsWindow.show() }
+
     func showOnboarding() { OnboardingWindow.show() }
 
     func checkForUpdates() {
