@@ -73,30 +73,120 @@ struct ClipThumbnail: View {
 struct ClipScrollSensitivityTuner: NSViewRepresentable {
     let sensitivity: Double
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        tune(afterMounting: view)
+    func makeNSView(context: Context) -> ClipScrollSensitivityView {
+        let view = ClipScrollSensitivityView(frame: .zero)
+        view.sensitivity = sensitivity
+        view.connectToScrollView()
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        tune(afterMounting: nsView)
+    func updateNSView(_ nsView: ClipScrollSensitivityView, context: Context) {
+        nsView.sensitivity = sensitivity
+        nsView.connectToScrollView()
     }
 
-    private func tune(afterMounting view: NSView) {
-        DispatchQueue.main.async {
-            guard let scrollView = enclosingScrollView(for: view) else { return }
-            let speed = max(0.20, min(1.00, sensitivity))
-            let lineDistance = CGFloat(28 * speed)
-            scrollView.horizontalLineScroll = lineDistance
-            scrollView.verticalLineScroll = lineDistance
-            scrollView.horizontalPageScroll = Design.cardWidth * CGFloat(speed)
-            scrollView.verticalPageScroll = Design.cardWidth * CGFloat(speed)
+    static func dismantleNSView(_ nsView: ClipScrollSensitivityView, coordinator: ()) {
+        nsView.stopMonitoring()
+    }
+}
+
+@MainActor
+final class ClipScrollSensitivityView: NSView {
+    var sensitivity: Double = 0.35 {
+        didSet { applyLineScrollTuning() }
+    }
+
+    private weak var scrollView: NSScrollView?
+    private var monitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        connectToScrollView()
+    }
+
+    deinit {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
         }
     }
 
-    private func enclosingScrollView(for view: NSView) -> NSScrollView? {
-        var current = view.superview
+    func connectToScrollView() {
+        DispatchQueue.main.async {
+            self.scrollView = self.enclosingScrollView()
+            self.applyLineScrollTuning()
+            self.startMonitoring()
+        }
+    }
+
+    func stopMonitoring() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    private func startMonitoring() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.scaleScroll(event) ?? event
+        }
+    }
+
+    private func applyLineScrollTuning() {
+        guard let scrollView else { return }
+        let speed = CGFloat(clampedSensitivity)
+        let lineDistance = 28 * speed
+        scrollView.horizontalLineScroll = lineDistance
+        scrollView.verticalLineScroll = lineDistance
+        scrollView.horizontalPageScroll = Design.cardWidth * speed
+        scrollView.verticalPageScroll = Design.cardWidth * speed
+    }
+
+    private func scaleScroll(_ event: NSEvent) -> NSEvent? {
+        guard event.type == .scrollWheel,
+              clampedSensitivity < 0.995,
+              let scrollView,
+              let window = scrollView.window,
+              event.window === window
+        else { return event }
+
+        let point = scrollView.convert(event.locationInWindow, from: nil)
+        guard scrollView.bounds.contains(point) else { return event }
+
+        let clipView = scrollView.contentView
+        let originBeforeScroll = clipView.bounds.origin
+        DispatchQueue.main.async { [weak scrollView, weak clipView] in
+            guard let scrollView, let clipView else { return }
+            let originAfterScroll = clipView.bounds.origin
+            let speed = CGFloat(self.clampedSensitivity)
+            let scaledOrigin = NSPoint(
+                x: originBeforeScroll.x + (originAfterScroll.x - originBeforeScroll.x) * speed,
+                y: originBeforeScroll.y + (originAfterScroll.y - originBeforeScroll.y) * speed
+            )
+            clipView.scroll(to: self.clamped(scaledOrigin, in: clipView))
+            scrollView.reflectScrolledClipView(clipView)
+        }
+
+        return event
+    }
+
+    private var clampedSensitivity: Double {
+        max(0.10, min(1.00, sensitivity))
+    }
+
+    private func clamped(_ point: NSPoint, in clipView: NSClipView) -> NSPoint {
+        guard let documentView = clipView.documentView else { return point }
+        let documentBounds = documentView.bounds
+        let maxX = max(documentBounds.minX, documentBounds.maxX - clipView.bounds.width)
+        let maxY = max(documentBounds.minY, documentBounds.maxY - clipView.bounds.height)
+        return NSPoint(
+            x: min(max(point.x, documentBounds.minX), maxX),
+            y: min(max(point.y, documentBounds.minY), maxY)
+        )
+    }
+
+    private func enclosingScrollView() -> NSScrollView? {
+        var current = superview
         while let view = current {
             if let scrollView = view as? NSScrollView { return scrollView }
             current = view.superview
