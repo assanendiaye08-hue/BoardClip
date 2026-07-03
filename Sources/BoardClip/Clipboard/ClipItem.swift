@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// The kind of content a clip holds. Drives icons, filtering and smart actions.
 enum ClipKind: String, Codable, CaseIterable, Hashable {
@@ -64,6 +65,7 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
     var byteSize: Int = 0
 
     var isProtected: Bool { pinned || !spaceIDs.isEmpty }
+    var isTextEditable: Bool { kind == .text || kind == .rtf || kind == .link }
 
     /// One-line preview used on the card / in lists.
     var preview: String {
@@ -89,5 +91,14 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
               let note = spaceNotes?[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !note.isEmpty else { return nil }
         return note
+    }
+}
+
+enum ClipContentHash {
+    static func make(kind: ClipKind, seed: Data) -> String {
+        var hasher = SHA256()
+        hasher.update(data: Data(kind.rawValue.utf8))
+        hasher.update(data: seed)
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }

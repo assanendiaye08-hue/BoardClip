@@ -79,6 +79,7 @@ final class HUDController: NSObject, NSWindowDelegate {
             onDelete: { [weak self] item in self?.store.delete(item) },
             onToggleSpace: { [weak self] sid, item in self?.store.toggleSpace(sid, for: item) },
             onEditSpaceNote: { [weak self] item, sid in self?.editSpaceNote(item, in: sid) },
+            onEditText: { [weak self] item in self?.editText(item) },
             onSaveToPhotos: { item in ItemActions.saveToPhotos(item) },
             onResearch: { [weak self] item in self?.hide(); ItemActions.research(item) },
             onReveal: { [weak self] item in self?.hide(); ItemActions.revealInFinder(item) },
@@ -147,6 +148,47 @@ final class HUDController: NSObject, NSWindowDelegate {
         if response == .alertFirstButtonReturn {
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if !name.isEmpty { spaceStore.add(name: name) }
+        }
+        panel?.makeKeyAndOrderFront(nil)
+    }
+
+    private func editText(_ item: ClipItem) {
+        guard item.isTextEditable else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Edit Clip Text"
+        alert.informativeText = "This changes the saved clip. Future pastes use the edited text."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 220))
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
+        let textView = NSTextView(frame: scrollView.bounds)
+        textView.string = item.bestPlainText
+        textView.font = .systemFont(ofSize: 13)
+        textView.isRichText = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+
+        scrollView.documentView = textView
+        alert.accessoryView = scrollView
+        alert.window.initialFirstResponder = textView
+
+        modalActive = true
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        modalActive = false
+
+        if response == .alertFirstButtonReturn {
+            store.updateText(textView.string, for: item)
         }
         panel?.makeKeyAndOrderFront(nil)
     }

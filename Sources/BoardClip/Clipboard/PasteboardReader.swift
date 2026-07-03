@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import UniformTypeIdentifiers
 
 /// A normalized snapshot of the pasteboard, before it becomes a stored `ClipItem`.
@@ -127,10 +126,7 @@ extension PasteboardDraft {
         self.colorHex = colorHex
         self.sourceBundleID = sourceBundleID
         self.sourceAppName = sourceAppName
-        var hasher = SHA256()
-        hasher.update(data: Data(kind.rawValue.utf8)) // stable across launches
-        hasher.update(data: seed)
-        self.contentHash = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        self.contentHash = ClipContentHash.make(kind: kind, seed: seed)
     }
 }
 
