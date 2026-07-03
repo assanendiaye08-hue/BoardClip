@@ -25,7 +25,11 @@ struct HUDView: View {
     @State private var selected = 0
     @State private var selectedSpace: UUID?
     @State private var shouldCenterSelectedClip = false
+    @State private var suppressHoverSelection = false
+    @State private var hoverUnlockMouseLocation: NSPoint?
+    @State private var hoveredIndex: Int?
     @State private var keyMonitor: Any?
+    @State private var pointerMonitor: Any?
     @FocusState private var searchFocused: Bool
 
     private var spaceFiltered: [ClipItem] {
@@ -67,19 +71,22 @@ struct HUDView: View {
         .onExitCommand(perform: onClose)
         .onAppear {
             resetForOpen()
-            installKeyMonitor()
+            installEventMonitors()
         }
-        .onDisappear { removeKeyMonitor() }
+        .onDisappear { removeEventMonitors() }
         .onChange(of: session.openCount) { _, _ in resetForOpen() }
         .onChange(of: search) {
+            allowHoverSelection()
             shouldCenterSelectedClip = false
             selected = 0
         }
         .onChange(of: selectedSpace) {
+            allowHoverSelection()
             shouldCenterSelectedClip = false
             selected = 0
         }
         .onChange(of: visible.count) { _, n in
+            allowHoverSelection()
             shouldCenterSelectedClip = false
             selected = min(selected, max(0, n - 1))
         }
@@ -90,6 +97,8 @@ struct HUDView: View {
         selectedSpace = nil
         selected = 0
         shouldCenterSelectedClip = false
+        allowHoverSelection()
+        hoveredIndex = nil
         searchFocused = true
     }
 
@@ -189,8 +198,10 @@ struct HUDView: View {
                         .id(item.id)
                         .onHover { hovering in
                             if hovering {
-                                shouldCenterSelectedClip = false
-                                selected = idx
+                                hoveredIndex = idx
+                                selectHoveredClip(idx)
+                            } else if hoveredIndex == idx {
+                                hoveredIndex = nil
                             }
                         }
                         .contextMenu { contextMenu(for: item) }
@@ -319,6 +330,7 @@ struct HUDView: View {
         guard !filtered.isEmpty else { return }
         let next = min(max(selected + delta, 0), filtered.count - 1)
         guard next != selected else { return }
+        suppressHoverSelectionUntilMouseMoves()
         shouldCenterSelectedClip = true
         selected = next
     }
@@ -338,17 +350,41 @@ struct HUDView: View {
         onPaste(item, plain)
     }
 
-    private func installKeyMonitor() {
+    private func selectHoveredClip(_ index: Int) {
+        guard !suppressHoverSelection else { return }
+        shouldCenterSelectedClip = false
+        selected = index
+    }
+
+    private func suppressHoverSelectionUntilMouseMoves() {
+        suppressHoverSelection = true
+        hoverUnlockMouseLocation = NSEvent.mouseLocation
+    }
+
+    private func allowHoverSelection() {
+        suppressHoverSelection = false
+        hoverUnlockMouseLocation = nil
+    }
+
+    private func installEventMonitors() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             handleKeyDown(event)
         }
+        pointerMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]) { event in
+            handlePointerMove(event)
+        }
     }
 
-    private func removeKeyMonitor() {
-        guard let keyMonitor else { return }
-        NSEvent.removeMonitor(keyMonitor)
-        self.keyMonitor = nil
+    private func removeEventMonitors() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
+        if let pointerMonitor {
+            NSEvent.removeMonitor(pointerMonitor)
+            self.pointerMonitor = nil
+        }
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -366,6 +402,26 @@ struct HUDView: View {
         default:
             return event
         }
+    }
+
+    private func handlePointerMove(_ event: NSEvent) -> NSEvent? {
+        guard suppressHoverSelection else { return event }
+
+        guard let start = hoverUnlockMouseLocation else {
+            allowHoverSelection()
+            return event
+        }
+
+        let current = NSEvent.mouseLocation
+        let dx = current.x - start.x
+        let dy = current.y - start.y
+        guard dx * dx + dy * dy >= 9 else { return event }
+
+        allowHoverSelection()
+        if let hoveredIndex, filtered.indices.contains(hoveredIndex) {
+            selectHoveredClip(hoveredIndex)
+        }
+        return event
     }
 }
 

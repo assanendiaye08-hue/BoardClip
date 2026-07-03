@@ -17,6 +17,7 @@ final class HUDPanel: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         isMovableByWindowBackground = false
+        acceptsMouseMovedEvents = true
         animationBehavior = .utilityWindow
         collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .transient]
     }
