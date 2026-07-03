@@ -14,6 +14,7 @@ struct HUDView: View {
     var onDelete: (ClipItem) -> Void
     var onToggleSpace: (UUID, ClipItem) -> Void
     var onEditSpaceNote: (ClipItem, UUID) -> Void
+    var onEditText: (ClipItem) -> Void
     var onSaveToPhotos: (ClipItem) -> Void
     var onResearch: (ClipItem) -> Void
     var onReveal: (ClipItem) -> Void
@@ -272,6 +273,9 @@ struct HUDView: View {
     @ViewBuilder private func contextMenu(for item: ClipItem) -> some View {
         Button("Paste") { onPaste(item, false) }
         Button("Paste as Plain Text") { onPaste(item, true) }
+        if item.isTextEditable {
+            Button("Edit Text…") { onEditText(item) }
+        }
         if item.kind == .text || item.kind == .rtf || item.kind == .link {
             Menu("Transform & Paste") {
                 ForEach(ItemActions.Transform.allCases) { t in

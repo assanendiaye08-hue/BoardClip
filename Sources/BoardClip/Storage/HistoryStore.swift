@@ -166,6 +166,31 @@ final class HistoryStore {
         scheduleSave()
     }
 
+    func updateText(_ text: String, for item: ClipItem) {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }),
+              items[idx].isTextEditable else { return }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if isLink(trimmed) {
+            items[idx].kind = .link
+            items[idx].text = trimmed
+            items[idx].urlString = trimmed
+            items[idx].contentHash = ClipContentHash.make(kind: .link, seed: Data(trimmed.utf8))
+            items[idx].byteSize = trimmed.utf8.count
+        } else {
+            items[idx].kind = .text
+            items[idx].text = text
+            items[idx].urlString = nil
+            items[idx].contentHash = ClipContentHash.make(kind: .text, seed: Data(text.utf8))
+            items[idx].byteSize = text.utf8.count
+        }
+
+        items[idx].rtfData = nil
+        scheduleSave()
+    }
+
     /// Strip references to a deleted Space.
     func removeSpaceReference(_ spaceID: UUID) {
         for i in items.indices {
@@ -222,6 +247,12 @@ final class HistoryStore {
 
     private func byteSize(of d: PasteboardDraft) -> Int {
         (d.text?.utf8.count ?? 0) + (d.rtfData?.count ?? 0) + (d.imagePNG?.count ?? 0)
+    }
+
+    private func isLink(_ s: String) -> Bool {
+        guard !s.contains(where: \.isWhitespace), s.count < 2048 else { return false }
+        guard let url = URL(string: s), let scheme = url.scheme?.lowercased() else { return false }
+        return (scheme == "http" || scheme == "https") && url.host != nil
     }
 }
 
