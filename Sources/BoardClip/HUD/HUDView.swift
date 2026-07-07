@@ -8,6 +8,7 @@ struct HUDView: View {
     let session: HUDSession
 
     var onPaste: (ClipItem, Bool) -> Void
+    var onPasteCombined: ([ClipItem]) -> Void
     var onClose: () -> Void
     var onAddSpace: () -> Void
     var onTogglePin: (ClipItem) -> Void
@@ -23,6 +24,7 @@ struct HUDView: View {
 
     @State private var search = ""
     @State private var selected = 0
+    @State private var multiSelectedIDs: [UUID] = []
     @State private var selectedSpace: UUID?
     @State private var shouldCenterSelectedClip = false
     @State private var suppressHoverSelection = false
@@ -51,12 +53,13 @@ struct HUDView: View {
 
     var body: some View {
         let visible = filtered   // compute the fuzzy filter once per render, not 4×
+        let multiItems = multiSelectedItems()
         return GlassEffectContainer {
             VStack(spacing: 12) {
                 header(count: visible.count)
                 spacePills
                 if visible.isEmpty { emptyState } else { strip(visible) }
-                footer
+                footer(selectedCount: multiItems.count)
             }
             .padding(.horizontal, 18)
             .padding(.top, 12)
@@ -90,12 +93,14 @@ struct HUDView: View {
             shouldCenterSelectedClip = false
             selected = min(selected, max(0, n - 1))
         }
+        .onChange(of: store.items.map(\.id)) { _, _ in pruneMultiSelection() }
     }
 
     private func resetForOpen() {
         search = ""
         selectedSpace = nil
         selected = 0
+        multiSelectedIDs.removeAll()
         shouldCenterSelectedClip = false
         allowHoverSelection()
         hoveredIndex = nil
@@ -186,11 +191,12 @@ struct HUDView: View {
                 // is O(visible) instead of O(history) — fast even with hundreds of clips.
                 LazyHStack(spacing: 12) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
-                        Button { pasteItem(item) } label: {
+                        Button { handleClipClick(item) } label: {
                             ClipCardView(
                                 item: item,
                                 index: idx,
                                 selected: idx == selected,
+                                multiSelected: isMultiSelected(item),
                                 spaceNote: item.note(in: selectedSpace)
                             )
                         }
@@ -240,10 +246,38 @@ struct HUDView: View {
 
     // MARK: Footer
 
-    private var footer: some View {
-        HStack(spacing: 16) {
+    private func footer(selectedCount: Int) -> some View {
+        HStack(spacing: 12) {
+            if selectedCount > 0 {
+                Button {
+                    pasteMultiSelected()
+                } label: {
+                    Label("Paste \(selectedCount)", systemImage: "square.stack.3d.up.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
+                .background(.tint, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .foregroundStyle(.white)
+                .help("Paste marked clips together")
+
+                Button {
+                    multiSelectedIDs.removeAll()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+                .background(.white.opacity(0.08), in: Circle())
+                .foregroundStyle(.secondary)
+                .help("Clear marked clips")
+            }
+
             hint("⌘1–9", "Paste")
-            hint("↩", "Paste selected")
+            hint("↩", selectedCount > 0 ? "Paste marked" : "Paste selected")
+            hint("space", "Mark")
             hint("←/→", "Select")
             hint("⌥", "Paste as text")
             hint("⌘,", "Settings")
@@ -284,6 +318,15 @@ struct HUDView: View {
     @ViewBuilder private func contextMenu(for item: ClipItem) -> some View {
         Button("Paste") { onPaste(item, false) }
         Button("Paste as Plain Text") { onPaste(item, true) }
+        if canMultiPaste(item) {
+            Button(isMultiSelected(item) ? "Remove from Multi-Paste" : "Select for Multi-Paste") {
+                toggleMultiSelection(item)
+            }
+        }
+        if !multiSelectedItems().isEmpty {
+            Button("Paste Selected Clips") { pasteMultiSelected() }
+            Button("Clear Multi-Paste Selection") { multiSelectedIDs.removeAll() }
+        }
         if item.isTextEditable {
             Button("Edit Text…") { onEditText(item) }
         }
@@ -322,6 +365,12 @@ struct HUDView: View {
     // MARK: Actions
 
     private func pasteSelected() {
+        let marked = multiSelectedItems()
+        if !marked.isEmpty {
+            pasteMultiSelected(marked)
+            return
+        }
+
         guard !filtered.isEmpty else { return }
         pasteItem(filtered[min(selected, filtered.count - 1)])
     }
@@ -346,8 +395,70 @@ struct HUDView: View {
     }
 
     private func pasteItem(_ item: ClipItem) {
+        multiSelectedIDs.removeAll()
         let plain = settings.pasteAsPlainDefault != NSEvent.modifierFlags.contains(.option)
         onPaste(item, plain)
+    }
+
+    private func handleClipClick(_ item: ClipItem) {
+        let toggleModifiers: NSEvent.ModifierFlags = [.command, .shift]
+        if !NSEvent.modifierFlags.intersection(toggleModifiers).isEmpty {
+            toggleMultiSelection(item)
+        } else {
+            pasteItem(item)
+        }
+    }
+
+    private func pasteMultiSelected() {
+        pasteMultiSelected(multiSelectedItems())
+    }
+
+    private func pasteMultiSelected(_ items: [ClipItem]) {
+        let usableItems = items.filter(canMultiPaste)
+        guard !usableItems.isEmpty else {
+            multiSelectedIDs.removeAll()
+            return
+        }
+        multiSelectedIDs.removeAll()
+        onPasteCombined(usableItems)
+    }
+
+    private func toggleCurrentMultiSelection() {
+        guard filtered.indices.contains(selected) else { return }
+        toggleMultiSelection(filtered[selected])
+    }
+
+    private func toggleMultiSelection(_ item: ClipItem) {
+        guard canMultiPaste(item) else { return }
+
+        if let index = multiSelectedIDs.firstIndex(of: item.id) {
+            multiSelectedIDs.remove(at: index)
+        } else {
+            multiSelectedIDs.append(item.id)
+        }
+    }
+
+    private func isMultiSelected(_ item: ClipItem) -> Bool {
+        multiSelectedIDs.contains(item.id)
+    }
+
+    private func multiSelectedItems() -> [ClipItem] {
+        let itemsByID = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
+        var seen = Set<UUID>()
+        return multiSelectedIDs.compactMap { id in
+            guard !seen.contains(id), let item = itemsByID[id], canMultiPaste(item) else { return nil }
+            seen.insert(id)
+            return item
+        }
+    }
+
+    private func pruneMultiSelection() {
+        let availableIDs = Set(store.items.map(\.id))
+        multiSelectedIDs.removeAll { !availableIDs.contains($0) }
+    }
+
+    private func canMultiPaste(_ item: ClipItem) -> Bool {
+        !item.bestPlainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func selectHoveredClip(_ index: Int) {
@@ -389,15 +500,24 @@ struct HUDView: View {
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         guard event.window is HUDPanel || NSApp.keyWindow is HUDPanel else { return event }
-        let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+        let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control]
         guard event.modifierFlags.intersection(blockedModifiers).isEmpty else { return event }
+        let shiftPressed = event.modifierFlags.contains(.shift)
 
         switch event.keyCode {
         case HUDKeyCode.leftArrow, HUDKeyCode.upArrow:
+            guard !shiftPressed else { return event }
             moveSelection(by: -1)
             return nil
         case HUDKeyCode.rightArrow, HUDKeyCode.downArrow:
+            guard !shiftPressed else { return event }
             moveSelection(by: 1)
+            return nil
+        case HUDKeyCode.space where shiftPressed || search.isEmpty:
+            toggleCurrentMultiSelection()
+            return nil
+        case HUDKeyCode.returnKey, HUDKeyCode.keypadEnter:
+            pasteSelected()
             return nil
         default:
             return event
@@ -430,4 +550,7 @@ private enum HUDKeyCode {
     static let rightArrow: UInt16 = 124
     static let downArrow: UInt16 = 125
     static let upArrow: UInt16 = 126
+    static let space: UInt16 = 49
+    static let returnKey: UInt16 = 36
+    static let keypadEnter: UInt16 = 76
 }
