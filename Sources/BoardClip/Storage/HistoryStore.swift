@@ -60,14 +60,15 @@ final class HistoryStore {
 
     // MARK: Ingest
 
-    func ingest(_ draft: PasteboardDraft) {
+    @discardableResult
+    func ingest(_ draft: PasteboardDraft) -> ClipItem {
         // De-dupe: a re-copy promotes the existing item instead of adding a duplicate.
         if let idx = items.firstIndex(where: { $0.contentHash == draft.contentHash }) {
             var existing = items.remove(at: idx)
             existing.lastUsedAt = Date()
             items.insert(existing, at: 0)
             scheduleSave()
-            return
+            return existing
         }
 
         var imageFileName: String?
@@ -90,6 +91,27 @@ final class HistoryStore {
         items.insert(item, at: 0)
         enforceCap()
         scheduleSave()
+        return item
+    }
+
+    @discardableResult
+    func ingestText(_ text: String, sourceAppName: String = AppInfo.name) -> ClipItem? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let draft = PasteboardDraft(
+            kind: .text,
+            text: text,
+            rtfData: nil,
+            imagePNG: nil,
+            imageWidth: nil,
+            imageHeight: nil,
+            fileURLs: nil,
+            urlString: nil,
+            colorHex: nil,
+            sourceBundleID: AppInfo.bundleID,
+            sourceAppName: sourceAppName,
+            hash: Data(text.utf8)
+        )
+        return ingest(draft)
     }
 
     /// Add a pre-built item (used by the screenshot watcher).

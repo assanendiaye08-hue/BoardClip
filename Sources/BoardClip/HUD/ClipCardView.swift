@@ -5,6 +5,7 @@ struct ClipCardView: View {
     let item: ClipItem
     let index: Int          // 0-based position in the visible list
     let selected: Bool
+    let multiSelected: Bool
     let spaceNote: String?
 
     private var shortcutBadge: String? { index < 9 ? "⌘\(index + 1)" : nil }
@@ -20,7 +21,7 @@ struct ClipCardView: View {
                 .padding(10)
         }
         .frame(width: Design.cardWidth, height: Design.cardHeight, alignment: .topLeading)
-        .clipTile(selected: selected)
+        .clipTile(selected: selected || multiSelected)
         .clipShape(RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous))
     }
 
@@ -34,6 +35,11 @@ struct ClipCardView: View {
                 .foregroundStyle(hasSpaceNote ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
             Spacer(minLength: 4)
+            if multiSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tint)
+            }
             if item.pinned {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 9))

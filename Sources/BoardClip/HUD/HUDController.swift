@@ -73,6 +73,7 @@ final class HUDController: NSObject, NSWindowDelegate {
             settings: settings,
             session: session,
             onPaste: { [weak self] item, plain in self?.paste(item, plain: plain) },
+            onPasteCombined: { [weak self] items in self?.pasteCombined(items) },
             onClose: { [weak self] in self?.hide() },
             onAddSpace: { [weak self] in self?.addSpace() },
             onTogglePin: { [weak self] item in self?.store.togglePin(item) },
@@ -114,6 +115,17 @@ final class HUDController: NSObject, NSWindowDelegate {
     private func paste(_ item: ClipItem, plain: Bool) {
         hide()
         Paster.paste(item, asPlainText: plain, previousApp: previousApp, monitor: monitor, store: store)
+    }
+
+    private func pasteCombined(_ items: [ClipItem]) {
+        let combined = items
+            .map { $0.bestPlainText.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard !combined.isEmpty, let item = store.ingestText(combined, sourceAppName: "Combined Clips") else { return }
+
+        hide()
+        Paster.paste(item, asPlainText: true, previousApp: previousApp, monitor: monitor, store: store)
     }
 
     private func transformPaste(_ item: ClipItem, _ transform: ItemActions.Transform) {
