@@ -11,6 +11,7 @@ struct ClipCardView: View {
     private var shortcutBadge: String? { index < 9 ? "⌘\(index + 1)" : nil }
     private var hasSpaceNote: Bool { spaceNote != nil }
     private var headerTitle: String { spaceNote ?? item.sourceAppName ?? item.kind.label }
+    private var markColor: Color { Color(nsColor: .systemGreen) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,7 +22,7 @@ struct ClipCardView: View {
                 .padding(10)
         }
         .frame(width: Design.cardWidth, height: Design.cardHeight, alignment: .topLeading)
-        .clipTile(selected: selected || multiSelected)
+        .clipTile(highlighted: selected, marked: multiSelected)
         .clipShape(RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous))
     }
 
@@ -38,7 +39,7 @@ struct ClipCardView: View {
             if multiSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(markColor)
             }
             if item.pinned {
                 Image(systemName: "pin.fill")

@@ -14,19 +14,31 @@ enum Design {
 }
 
 extension View {
-    /// A subtle tile used for each clip card; brightens + gains an accent ring when selected.
-    func clipTile(selected: Bool) -> some View {
-        self
+    /// A subtle tile used for each clip card. Arrow focus and multi-paste marking are distinct.
+    func clipTile(highlighted: Bool, marked: Bool) -> some View {
+        let markColor = Color(nsColor: .systemGreen)
+        return self
             .background(
                 RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous)
-                    .fill(selected ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.white.opacity(0.06)))
+                    .fill(tileFill(highlighted: highlighted, marked: marked, markColor: markColor))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous)
-                    .strokeBorder(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.white.opacity(0.10)),
-                                  lineWidth: selected ? 2 : 1)
+                    .strokeBorder(marked ? AnyShapeStyle(markColor.opacity(0.85)) : AnyShapeStyle(.white.opacity(0.10)),
+                                  lineWidth: marked ? 1.5 : 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous)
+                    .strokeBorder(highlighted ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear),
+                                  lineWidth: highlighted ? 3 : 0)
             )
             .contentShape(RoundedRectangle(cornerRadius: Design.cardCornerRadius, style: .continuous))
+    }
+
+    private func tileFill(highlighted: Bool, marked: Bool, markColor: Color) -> AnyShapeStyle {
+        if highlighted { return AnyShapeStyle(.tint.opacity(0.18)) }
+        if marked { return AnyShapeStyle(markColor.opacity(0.12)) }
+        return AnyShapeStyle(.white.opacity(0.06))
     }
 }
 
