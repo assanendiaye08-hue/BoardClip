@@ -98,7 +98,7 @@ extension ClipItem {
         case .link: return urlString ?? text ?? ""
         case .color: return colorHex ?? ""
         case .file: return (fileURLs ?? []).joined(separator: "\n")
-        case .image: return text ?? ""
+        case .image: return text ?? imageText
         }
     }
 }

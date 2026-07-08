@@ -11,6 +11,8 @@ final class HistoryStore {
     @ObservationIgnored private let settings: Settings
     @ObservationIgnored private var saveWork: DispatchWorkItem?
     @ObservationIgnored private let ioQueue = DispatchQueue(label: "com.boardclip.history.io")
+    @ObservationIgnored private var imageTextRecognitionTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingImageTextRecognitionIDs = Set<UUID>()
 
     init(settings: Settings) {
         self.settings = settings
@@ -23,6 +25,7 @@ final class HistoryStore {
         guard let data = try? Data(contentsOf: AppPaths.historyFile) else { return }
         if let decoded = try? JSONDecoder.iso.decode([ClipItem].self, from: data) {
             items = decoded.sorted { $0.lastUsedAt > $1.lastUsedAt }
+            queueImageTextRecognitionBackfill()
         }
     }
 
@@ -67,6 +70,7 @@ final class HistoryStore {
             var existing = items.remove(at: idx)
             existing.lastUsedAt = Date()
             items.insert(existing, at: 0)
+            queueImageTextRecognitionIfNeeded(for: existing)
             scheduleSave()
             return existing
         }
@@ -90,6 +94,7 @@ final class HistoryStore {
         )
         items.insert(item, at: 0)
         enforceCap()
+        queueImageTextRecognitionIfNeeded(for: item)
         scheduleSave()
         return item
     }
@@ -119,6 +124,7 @@ final class HistoryStore {
         if items.contains(where: { $0.contentHash == item.contentHash }) { return }
         items.insert(item, at: 0)
         enforceCap()
+        queueImageTextRecognitionIfNeeded(for: item)
         scheduleSave()
     }
 
@@ -271,11 +277,74 @@ final class HistoryStore {
         (d.text?.utf8.count ?? 0) + (d.rtfData?.count ?? 0) + (d.imagePNG?.count ?? 0)
     }
 
+    private func queueImageTextRecognitionBackfill() {
+        for item in items {
+            queueImageTextRecognitionIfNeeded(for: item)
+        }
+    }
+
+    private func queueImageTextRecognitionIfNeeded(for item: ClipItem) {
+        guard item.kind == .image,
+              item.recognizedText == nil,
+              item.imageFileName != nil
+        else { return }
+
+        pendingImageTextRecognitionIDs.insert(item.id)
+        startImageTextRecognitionWorkerIfNeeded()
+    }
+
+    private func startImageTextRecognitionWorkerIfNeeded() {
+        guard imageTextRecognitionTask == nil else { return }
+        imageTextRecognitionTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                guard let target = nextImageTextRecognitionTarget() else { break }
+                let text = await ImageTextRecognizer.recognizeText(at: target.url)
+                applyRecognizedImageText(text, to: target.id)
+            }
+
+            imageTextRecognitionTask = nil
+            if !pendingImageTextRecognitionIDs.isEmpty {
+                startImageTextRecognitionWorkerIfNeeded()
+            }
+        }
+    }
+
+    private func nextImageTextRecognitionTarget() -> ImageTextRecognitionTarget? {
+        while let id = pendingImageTextRecognitionIDs.first {
+            pendingImageTextRecognitionIDs.remove(id)
+            guard let item = items.first(where: { $0.id == id }),
+                  item.kind == .image,
+                  item.recognizedText == nil,
+                  let fileName = item.imageFileName
+            else { continue }
+
+            return ImageTextRecognitionTarget(id: id, url: AppPaths.blobURL(fileName))
+        }
+        return nil
+    }
+
+    private func applyRecognizedImageText(_ text: String, to id: UUID) {
+        guard let idx = items.firstIndex(where: { $0.id == id }),
+              items[idx].kind == .image,
+              items[idx].recognizedText == nil
+        else { return }
+
+        items[idx].recognizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        scheduleSave()
+    }
+
     private func isLink(_ s: String) -> Bool {
         guard !s.contains(where: \.isWhitespace), s.count < 2048 else { return false }
         guard let url = URL(string: s), let scheme = url.scheme?.lowercased() else { return false }
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
+}
+
+private struct ImageTextRecognitionTarget {
+    let id: UUID
+    let url: URL
 }
 
 extension JSONEncoder {
