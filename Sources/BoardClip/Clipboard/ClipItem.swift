@@ -61,11 +61,15 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
     var fileURLs: [String]?
     var urlString: String?
     var colorHex: String?
+    /// Text recognized inside image clips. `nil` means not scanned yet; empty means scanned with no text found.
+    var recognizedText: String?
 
     var byteSize: Int = 0
 
     var isProtected: Bool { pinned || !spaceIDs.isEmpty }
     var isTextEditable: Bool { kind == .text || kind == .rtf || kind == .link }
+    var imageText: String { recognizedText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
+    var hasRecognizedImageText: Bool { kind == .image && !imageText.isEmpty }
 
     /// One-line preview used on the card / in lists.
     var preview: String {

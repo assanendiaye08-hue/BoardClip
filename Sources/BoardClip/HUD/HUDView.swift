@@ -44,7 +44,7 @@ struct HUDView: View {
         guard !search.isEmpty else { return base }
         return base
             .compactMap { item -> (ClipItem, Int)? in
-                let hay = "\(item.preview) \(item.note(in: selectedSpace) ?? "") \(item.sourceAppName ?? "") \(item.kind.label)"
+                let hay = "\(item.preview) \(item.imageText) \(item.note(in: selectedSpace) ?? "") \(item.sourceAppName ?? "") \(item.kind.label)"
                 return Fuzzy.score(search, in: hay).map { (item, $0) }
             }
             .sorted { $0.1 > $1.1 }
