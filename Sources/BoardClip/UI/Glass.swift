@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ImageIO
 
 /// Shared design tokens and Liquid Glass helpers.
 enum Design {
@@ -77,7 +78,17 @@ struct ClipThumbnail: View {
         }
         .task(id: fileName) {
             let url = AppPaths.blobURL(fileName)
-            image = await Task.detached { NSImage(contentsOf: url) }.value
+            image = await Task.detached(priority: .utility) {
+                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceShouldCacheImmediately: true,
+                        kCGImageSourceThumbnailMaxPixelSize: 640
+                      ] as CFDictionary)
+                else { return nil }
+                return NSImage(cgImage: cgImage, size: .zero)
+            }.value
         }
     }
 }

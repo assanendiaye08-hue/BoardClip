@@ -7,6 +7,7 @@ import SwiftUI
 @Observable
 final class HUDSession {
     var openCount = 0
+    var statusMessage: String?
 }
 
 /// Owns the floating HUD: builds it, pins it to the top of the active screen, shows/hides it,
@@ -99,8 +100,7 @@ final class HUDController: NSObject, NSWindowDelegate {
     }
 
     private func position(_ panel: HUDPanel) {
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-            ?? NSScreen.main
+        let screen = activeBoardClipWindowScreen() ?? screenForFocusedApp() ?? screenUnderMouse() ?? NSScreen.main
         guard let screen else { return }
         // Pasty-style: a full-width bar pinned flush under the menu bar at the very top of the screen.
         let full = screen.frame
@@ -113,8 +113,25 @@ final class HUDController: NSObject, NSWindowDelegate {
     // MARK: Paste
 
     private func paste(_ item: ClipItem, plain: Bool) {
-        hide()
-        Paster.paste(item, asPlainText: plain, previousApp: previousApp, monitor: monitor, store: store)
+        let wrote = Paster.paste(
+            item,
+            asPlainText: plain,
+            previousApp: previousApp,
+            monitor: monitor,
+            store: store,
+            onAutoPasteFailure: { [weak self] in
+                self?.showPasteFailure("Copied, but the destination app did not become ready. Close BoardClip and press ⌘V.")
+            }
+        )
+        if wrote {
+            if Paster.canAutoPaste {
+                hide()
+            } else {
+                showPasteFailure("Copied. Accessibility is off, so close BoardClip and press ⌘V to paste manually.")
+            }
+        } else {
+            showPasteFailure("This clip is no longer available. Its source file may have moved or been deleted.")
+        }
     }
 
     private func pasteCombined(_ items: [ClipItem]) {
@@ -124,21 +141,80 @@ final class HUDController: NSObject, NSWindowDelegate {
             .joined(separator: " ")
         guard !combined.isEmpty, let item = store.ingestText(combined, sourceAppName: "Combined Clips") else { return }
 
-        hide()
-        Paster.paste(item, asPlainText: true, previousApp: previousApp, monitor: monitor, store: store)
+        paste(item, plain: true)
     }
 
     private func transformPaste(_ item: ClipItem, _ transform: ItemActions.Transform) {
         var temp = item
         temp.kind = .text
         temp.text = transform.apply(item.bestPlainText)
-        hide()
-        Paster.paste(temp, asPlainText: true, previousApp: previousApp, monitor: monitor, store: store)
+        paste(temp, plain: true)
     }
 
     private func showSettings() {
         hide()
         SettingsWindow.show()
+    }
+
+    private func showPasteFailure(_ message: String) {
+        session.statusMessage = message
+        let panel = makePanel()
+        position(panel)
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+    }
+
+    private func screenUnderMouse() -> NSScreen? {
+        NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+    }
+
+    private func activeBoardClipWindowScreen() -> NSScreen? {
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == AppInfo.bundleID else {
+            return nil
+        }
+        return NSApp.keyWindow?.screen
+    }
+
+    /// Prefer the screen containing the frontmost app's top window. This matches where keyboard
+    /// focus is, even when the mouse is parked on another display.
+    private func screenForFocusedApp() -> NSScreen? {
+        guard let pid = previousApp?.processIdentifier,
+              let windowInfo = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements],
+                kCGNullWindowID
+              ) as? [[String: Any]]
+        else { return nil }
+
+        let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
+            ?? NSScreen.main?.frame.height
+            ?? 0
+
+        for info in windowInfo {
+            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
+                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                  let quartzRect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  quartzRect.width >= 80,
+                  quartzRect.height >= 40
+            else { continue }
+
+            let appKitRect = CGRect(
+                x: quartzRect.minX,
+                y: primaryHeight - quartzRect.maxY,
+                width: quartzRect.width,
+                height: quartzRect.height
+            )
+            let match = NSScreen.screens
+                .map { ($0, intersectionArea($0.frame, appKitRect)) }
+                .max { $0.1 < $1.1 }
+            if let match, match.1 > 0 { return match.0 }
+        }
+        return nil
+    }
+
+    private func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+        let intersection = lhs.intersection(rhs)
+        return intersection.isNull ? 0 : intersection.width * intersection.height
     }
 
     private func addSpace() {

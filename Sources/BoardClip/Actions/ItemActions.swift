@@ -38,11 +38,19 @@ enum ItemActions {
 
     /// Open a web search for the clip's text in the default browser.
     static func research(_ item: ClipItem) {
-        let q = item.bestPlainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty,
-              let encoded = q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://www.google.com/search?q=\(encoded)") else { return }
+        guard let url = researchURL(for: item.bestPlainText) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    static func researchURL(for text: String) -> URL? {
+        let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.google.com"
+        components.path = "/search"
+        components.queryItems = [URLQueryItem(name: "q", value: q)]
+        return components.url
     }
 
     /// Reveal the first file of a file clip in Finder.

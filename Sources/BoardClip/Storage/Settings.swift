@@ -20,6 +20,7 @@ final class Settings {
     var clipScrollSensitivity: Double { didSet { d.set(clipScrollSensitivity, forKey: "clipScrollSensitivity") } }
     var showMenuBarIcon: Bool { didSet { d.set(showMenuBarIcon, forKey: "showMenuBarIcon") } }
     var playSounds: Bool { didSet { d.set(playSounds, forKey: "playSounds") } }
+    var captureClipboard: Bool { didSet { d.set(captureClipboard, forKey: "captureClipboard") } }
 
     /// Global hotkey. `keyCode` is a virtual key code; `modifiers` is `NSEvent.ModifierFlags.rawValue`.
     var hotKeyCode: Int { didSet { d.set(hotKeyCode, forKey: "hotKeyCode") } }
@@ -38,6 +39,7 @@ final class Settings {
         clipScrollSensitivity = (d.object(forKey: "clipScrollSensitivity") as? Double) ?? 0.35
         showMenuBarIcon = (d.object(forKey: "showMenuBarIcon") as? Bool) ?? true
         playSounds = (d.object(forKey: "playSounds") as? Bool) ?? false
+        captureClipboard = (d.object(forKey: "captureClipboard") as? Bool) ?? true
         hotKeyCode = (d.object(forKey: "hotKeyCode") as? Int) ?? 9 // 'v'
         hotKeyModifiers = (d.object(forKey: "hotKeyModifiers") as? Int)
             .map { UInt(bitPattern: $0) }

@@ -11,8 +11,8 @@ APP_NAME="BoardClip"
 APP="$ROOT/build/$APP_NAME.app"
 
 echo "▸ Building ($CONFIG)…"
-swift build -c "$CONFIG"
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+swift build -c "$CONFIG" --disable-automatic-resolution
+BIN_DIR="$(swift build -c "$CONFIG" --disable-automatic-resolution --show-bin-path)"
 
 echo "▸ Assembling $APP"
 rm -rf "$APP"

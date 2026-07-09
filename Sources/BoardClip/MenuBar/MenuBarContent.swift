@@ -2,12 +2,18 @@ import SwiftUI
 
 /// The menu shown when clicking the menu-bar icon.
 struct MenuBarContent: View {
+    @Bindable private var settings = Settings.shared
+
     var body: some View {
         Button("Show \(AppInfo.name)") { AppDelegate.shared?.showHUD() }
 
+        Button(settings.captureClipboard ? "Pause Clipboard Capture" : "Resume Clipboard Capture") {
+            settings.captureClipboard.toggle()
+        }
+
         Divider()
 
-        Button("Clear History") { AppDelegate.shared?.store.clearAll() }
+        Button("Clear History…") { AppDelegate.shared?.confirmClearHistory() }
 
         if !Permissions.accessibilityGranted {
             Button("Enable Paste (Accessibility)…") {

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 /// First-run window: explains the hotkey and walks through the one permission BoardClip needs.
 @MainActor
@@ -12,7 +13,10 @@ enum OnboardingWindow {
             w.makeKeyAndOrderFront(nil)
             return
         }
-        let hosting = NSHostingView(rootView: OnboardingView { close() })
+        let hosting = NSHostingView(rootView: OnboardingView {
+            UserDefaults.standard.set(true, forKey: "didOnboard")
+            close()
+        })
         let w = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 580),
             styleMask: [.titled, .closable, .fullSizeContentView],

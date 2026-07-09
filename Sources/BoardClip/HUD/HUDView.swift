@@ -104,6 +104,8 @@ struct HUDView: View {
         shouldCenterSelectedClip = false
         allowHoverSelection()
         hoveredIndex = nil
+        session.statusMessage = store.recoveryNotice
+        store.clearRecoveryNotice()
         searchFocused = true
     }
 
@@ -130,6 +132,11 @@ struct HUDView: View {
             Spacer()
 
             HStack(spacing: 10) {
+                if !settings.captureClipboard {
+                    Label("Capture paused", systemImage: "pause.circle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
                 Text("\(count) clip\(count == 1 ? "" : "s")")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
@@ -142,6 +149,7 @@ struct HUDView: View {
                 .background(.white.opacity(0.08), in: Circle())
                 .foregroundStyle(.secondary)
                 .help("Settings")
+                .accessibilityLabel("Open Settings")
             }
         }
     }
@@ -202,6 +210,9 @@ struct HUDView: View {
                         }
                         .buttonStyle(.plain)
                         .id(item.id)
+                        .accessibilityLabel(accessibilityLabel(for: item))
+                        .accessibilityValue(accessibilityValue(for: item, index: idx))
+                        .accessibilityHint("Press to paste. Open the context menu for more actions.")
                         .onHover { hovering in
                             if hovering {
                                 hoveredIndex = idx
@@ -247,6 +258,24 @@ struct HUDView: View {
     // MARK: Footer
 
     private func footer(selectedCount: Int) -> some View {
+        Group {
+            if let message = session.statusMessage {
+                HStack(spacing: 12) {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                    Spacer()
+                    hint("esc", "Close")
+                }
+            } else {
+                footerControls(selectedCount: selectedCount)
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+    }
+
+    private func footerControls(selectedCount: Int) -> some View {
         HStack(spacing: 12) {
             if selectedCount > 0 {
                 Button {
@@ -284,8 +313,6 @@ struct HUDView: View {
             Spacer()
             hint("esc", "Close")
         }
-        .font(.system(size: 11))
-        .foregroundStyle(.tertiary)
     }
 
     private func hint(_ key: String, _ label: String) -> some View {
@@ -306,10 +333,12 @@ struct HUDView: View {
                 Button("") { if i < filtered.count { pasteItem(filtered[i]) } }
                     .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
                     .opacity(0)
+                    .accessibilityHidden(true)
             }
             Button("") { onSettings() }
                 .keyboardShortcut(",", modifiers: .command)
                 .opacity(0)
+                .accessibilityHidden(true)
         }
     }
 
@@ -357,7 +386,7 @@ struct HUDView: View {
         }
         if item.kind == .image { Button("Save to Photos") { onSaveToPhotos(item) } }
         if item.kind == .file { Button("Reveal in Finder") { onReveal(item) } }
-        if !item.bestPlainText.isEmpty { Button("Research") { onResearch(item) } }
+        if !item.bestPlainText.isEmpty { Button("Search Google for Clip…") { onResearch(item) } }
         Divider()
         Button("Delete", role: .destructive) { onDelete(item) }
     }
@@ -505,11 +534,21 @@ struct HUDView: View {
         let shiftPressed = event.modifierFlags.contains(.shift)
 
         switch event.keyCode {
-        case HUDKeyCode.leftArrow, HUDKeyCode.upArrow:
+        case HUDKeyCode.leftArrow:
+            guard !shiftPressed else { return event }
+            guard search.isEmpty || !searchFocused else { return event }
+            moveSelection(by: -1)
+            return nil
+        case HUDKeyCode.rightArrow:
+            guard !shiftPressed else { return event }
+            guard search.isEmpty || !searchFocused else { return event }
+            moveSelection(by: 1)
+            return nil
+        case HUDKeyCode.upArrow:
             guard !shiftPressed else { return event }
             moveSelection(by: -1)
             return nil
-        case HUDKeyCode.rightArrow, HUDKeyCode.downArrow:
+        case HUDKeyCode.downArrow:
             guard !shiftPressed else { return event }
             moveSelection(by: 1)
             return nil
@@ -542,6 +581,19 @@ struct HUDView: View {
             selectHoveredClip(hoveredIndex)
         }
         return event
+    }
+
+    private func accessibilityLabel(for item: ClipItem) -> String {
+        let preview = item.preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        return preview.isEmpty ? item.kind.label : "\(item.kind.label): \(preview)"
+    }
+
+    private func accessibilityValue(for item: ClipItem, index: Int) -> String {
+        var states = ["Clip \(index + 1)"]
+        if index == selected { states.append("keyboard focus") }
+        if isMultiSelected(item) { states.append("marked for multi-paste") }
+        if item.pinned { states.append("pinned") }
+        return states.joined(separator: ", ")
     }
 }
 

@@ -7,6 +7,7 @@ struct PasteboardDraft {
     var text: String?
     var rtfData: Data?
     var imagePNG: Data?
+    var imageUTTypeIdentifier: String?
     var imageWidth: Int?
     var imageHeight: Int?
     var fileURLs: [String]?
@@ -41,10 +42,12 @@ enum PasteboardReader {
 
         func draft(_ kind: ClipKind,
                    text: String? = nil, rtf: Data? = nil, png: Data? = nil,
+                   imageType: String? = nil,
                    w: Int? = nil, h: Int? = nil, files: [String]? = nil,
                    url: String? = nil, color: String? = nil, hashSeed: Data) -> PasteboardDraft {
             PasteboardDraft(
                 kind: kind, text: text, rtfData: rtf, imagePNG: png,
+                imageUTTypeIdentifier: imageType,
                 imageWidth: w, imageHeight: h, fileURLs: files, urlString: url, colorHex: color,
                 sourceBundleID: sourceBundleID, sourceAppName: sourceAppName,
                 hash: hashSeed
@@ -68,7 +71,8 @@ enum PasteboardReader {
            let raw = pb.data(forType: .png) ?? pb.data(forType: .tiff),
            let rep = NSBitmapImageRep(data: raw) {
             let png = rep.representation(using: .png, properties: [:]) ?? raw
-            return draft(.image, png: png, w: rep.pixelsWide, h: rep.pixelsHigh, hashSeed: png)
+            return draft(.image, png: png, imageType: UTType.png.identifier,
+                         w: rep.pixelsWide, h: rep.pixelsHigh, hashSeed: png)
         }
 
         // 3) Color swatch
@@ -113,12 +117,14 @@ enum PasteboardReader {
 
 extension PasteboardDraft {
     init(kind: ClipKind, text: String?, rtfData: Data?, imagePNG: Data?,
+         imageUTTypeIdentifier: String? = nil,
          imageWidth: Int?, imageHeight: Int?, fileURLs: [String]?, urlString: String?,
          colorHex: String?, sourceBundleID: String?, sourceAppName: String?, hash seed: Data) {
         self.kind = kind
         self.text = text
         self.rtfData = rtfData
         self.imagePNG = imagePNG
+        self.imageUTTypeIdentifier = imageUTTypeIdentifier
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
         self.fileURLs = fileURLs

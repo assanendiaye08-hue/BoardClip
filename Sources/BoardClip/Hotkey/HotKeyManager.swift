@@ -20,7 +20,8 @@ final class HotKeyManager {
     private init() {}
 
     /// (Re)register the hotkey. `keyCode` is a virtual key code; `flags` are Cocoa modifier flags.
-    func register(keyCode: Int, flags: NSEvent.ModifierFlags) {
+    @discardableResult
+    func register(keyCode: Int, flags: NSEvent.ModifierFlags) -> Bool {
         unregister()
         installHandlerIfNeeded()
 
@@ -34,7 +35,12 @@ final class HotKeyManager {
             0,
             &ref
         )
-        if status == noErr { hotKeyRef = ref }
+        if status == noErr {
+            hotKeyRef = ref
+            return true
+        }
+        NSLog("[BoardClip] Could not register global shortcut (status \(status))")
+        return false
     }
 
     func unregister() {
