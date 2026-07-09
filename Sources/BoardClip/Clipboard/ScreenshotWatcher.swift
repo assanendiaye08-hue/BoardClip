@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 /// Watches the macOS screenshot folder so ⌘⇧4 *file* screenshots are captured too
 /// (the clipboard monitor only sees ⌘⌃⇧4 screenshots that go to the pasteboard).
@@ -67,14 +68,22 @@ final class ScreenshotWatcher {
         }
     }
 
-    private func ingest(_ name: String) {
+    private func ingest(_ name: String, attempt: Int = 0) {
         let url = dirURL.appendingPathComponent(name)
-        guard let raw = try? Data(contentsOf: url), let rep = NSBitmapImageRep(data: raw) else { return }
+        guard let raw = try? Data(contentsOf: url), let rep = NSBitmapImageRep(data: raw) else {
+            if attempt < 3 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4 * Double(attempt + 1)) { [weak self] in
+                    self?.ingest(name, attempt: attempt + 1)
+                }
+            }
+            return
+        }
         let png = rep.representation(using: .png, properties: [:]) ?? raw
         // Store the ORIGINAL file bytes (no re-encode) so the blob keeps full resolution, colour
         // profile and DPI — that blob is exactly what "Save to Photos" writes into the library.
         let draft = PasteboardDraft(
             kind: .image, text: nil, rtfData: nil, imagePNG: raw,
+            imageUTTypeIdentifier: imageTypeIdentifier(for: url),
             imageWidth: rep.pixelsWide, imageHeight: rep.pixelsHigh,
             fileURLs: nil, urlString: nil, colorHex: nil,
             sourceBundleID: nil, sourceAppName: "Screenshot", hash: raw)
@@ -91,6 +100,13 @@ final class ScreenshotWatcher {
             if let tiff = rep.tiffRepresentation { item.setData(tiff, forType: .tiff) }
             pb.writeObjects([item])
             monitor.suppressedChangeCount = pb.changeCount
+        }
+    }
+
+    private func imageTypeIdentifier(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "jpg", "jpeg": return UTType.jpeg.identifier
+        default: return UTType.png.identifier
         }
     }
 }

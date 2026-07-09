@@ -3,22 +3,64 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @State private var selection: SettingsSection = .general
+
     var body: some View {
-        TabView {
-            GeneralSettings()
-                .tabItem { Label("General", systemImage: "gearshape") }
-            ShortcutSettings()
-                .tabItem { Label("Shortcut", systemImage: "command") }
-            HistorySettings()
-                .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
-            SpacesSettings()
-                .tabItem { Label("Spaces", systemImage: "tray.full") }
-            PrivacySettings()
-                .tabItem { Label("Privacy", systemImage: "hand.raised") }
-            AboutSettings()
-                .tabItem { Label("About", systemImage: "info.circle") }
+        HStack(spacing: 0) {
+            List(SettingsSection.allCases, selection: $selection) { section in
+                Label(section.rawValue, systemImage: section.systemImage)
+                    .tag(section)
+                    .padding(.vertical, 3)
+            }
+            .listStyle(.sidebar)
+            .frame(width: 176)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(selection.rawValue)
+                    .font(.system(size: 20, weight: .semibold))
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 16)
+                Divider()
+                selectedView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        .frame(width: 540, height: 430)
+        .frame(width: 720, height: 480)
+    }
+
+    @ViewBuilder private var selectedView: some View {
+        switch selection {
+        case .general: GeneralSettings()
+        case .shortcut: ShortcutSettings()
+        case .history: HistorySettings()
+        case .spaces: SpacesSettings()
+        case .privacy: PrivacySettings()
+        case .about: AboutSettings()
+        }
+    }
+}
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general = "General"
+    case shortcut = "Shortcut"
+    case history = "History"
+    case spaces = "Spaces"
+    case privacy = "Privacy"
+    case about = "About"
+
+    var id: Self { self }
+
+    var systemImage: String {
+        switch self {
+        case .general: return "gearshape"
+        case .shortcut: return "command"
+        case .history: return "clock.arrow.circlepath"
+        case .spaces: return "tray.full"
+        case .privacy: return "hand.raised"
+        case .about: return "info.circle"
+        }
     }
 }
 
@@ -38,6 +80,11 @@ private struct GeneralSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Capture ⌘⇧4 screenshots automatically", isOn: $settings.watchScreenshots)
                     .onChange(of: settings.watchScreenshots) { _, v in AppDelegate.shared?.setScreenshotWatching(v) }
+                if settings.watchScreenshots {
+                    Toggle("Copy new screenshots to the clipboard", isOn: $settings.copyScreenshotsToClipboard)
+                    Text("Turn this off if screenshots should appear in BoardClip without replacing what you copied.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("Pasting") {
                 Toggle("Paste as plain text by default", isOn: $settings.pasteAsPlainDefault)
@@ -94,6 +141,7 @@ private struct ShortcutSettings: View {
 
 private struct HistorySettings: View {
     @Bindable var settings = Settings.shared
+    @State private var confirmingClear = false
 
     var body: some View {
         Form {
@@ -105,13 +153,25 @@ private struct HistorySettings: View {
             }
             Section {
                 Button("Clear History Now", role: .destructive) {
-                    AppDelegate.shared?.store.clearAll()
+                    confirmingClear = true
                 }
                 Text("Keeps pinned and Space-saved clips.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            "Clear clipboard history?",
+            isPresented: $confirmingClear,
+            titleVisibility: .visible
+        ) {
+            Button("Clear History", role: .destructive) {
+                AppDelegate.shared?.store.clearAll()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Pinned clips and clips saved to a Space will be kept.")
+        }
     }
 
     private var retentionLabel: String {
@@ -179,6 +239,7 @@ private struct SpaceRow: View {
     let spaceStore: SpaceStore
     let store: HistoryStore
     @State private var name: String
+    @State private var confirmingDelete = false
 
     init(space: Space, spaceStore: SpaceStore, store: HistoryStore) {
         self.space = space; self.spaceStore = spaceStore; self.store = store
@@ -194,9 +255,22 @@ private struct SpaceRow: View {
                 .onSubmit { spaceStore.rename(space, to: name.trimmed.isEmpty ? space.name : name.trimmed) }
             Spacer()
             Button(role: .destructive) {
-                spaceStore.delete(space, from: store)
+                confirmingDelete = true
             } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
+                .help("Delete \(space.name)")
+        }
+        .confirmationDialog(
+            "Delete \(space.name)?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Space", role: .destructive) {
+                spaceStore.delete(space, from: store)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The clips stay in history, but their notes for this Space are removed.")
         }
     }
 }
@@ -209,6 +283,12 @@ private struct PrivacySettings: View {
     var body: some View {
         Form {
             Section("Clipboard") {
+                Toggle("Save new clipboard clips", isOn: $settings.captureClipboard)
+                Text(settings.captureClipboard
+                     ? "BoardClip is currently watching for new copies."
+                     : "Capture is paused. Existing clips remain available.")
+                    .font(.caption)
+                    .foregroundStyle(settings.captureClipboard ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
                 Toggle("Ignore passwords & secret clips", isOn: $settings.ignoreConcealed)
                 Text("Honors the standard concealed/transient markers password managers use.")
                     .font(.caption).foregroundStyle(.secondary)

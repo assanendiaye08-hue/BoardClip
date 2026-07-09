@@ -8,6 +8,7 @@ enum AppPaths {
     }()
 
     static var historyFile: URL { support.appendingPathComponent("history.json") }
+    static var historyBackupFile: URL { support.appendingPathComponent("history.backup.json") }
     static var spacesFile: URL { support.appendingPathComponent("spaces.json") }
     static var blobsDir: URL { support.appendingPathComponent("blobs", isDirectory: true) }
 
@@ -18,4 +19,10 @@ enum AppPaths {
     }
 
     static func blobURL(_ name: String) -> URL { blobsDir.appendingPathComponent(name) }
+
+    static func historyRecoveryFile(at date: Date = Date()) -> URL {
+        let stamp = ISO8601DateFormatter().string(from: date)
+            .replacingOccurrences(of: ":", with: "-")
+        return support.appendingPathComponent("history-recovery-\(stamp).json")
+    }
 }

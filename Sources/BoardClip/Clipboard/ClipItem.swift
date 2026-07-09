@@ -56,6 +56,8 @@ struct ClipItem: Identifiable, Codable, Equatable, Hashable {
     var text: String?
     var rtfData: Data?
     var imageFileName: String?
+    /// Uniform Type Identifier for the stored image bytes, such as `public.png` or `public.jpeg`.
+    var imageUTTypeIdentifier: String?
     var imageWidth: Int?
     var imageHeight: Int?
     var fileURLs: [String]?
@@ -104,5 +106,40 @@ enum ClipContentHash {
         hasher.update(data: Data(kind.rawValue.utf8))
         hasher.update(data: seed)
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+private enum ClipItemCodingKey: String, CodingKey {
+    case id, kind, createdAt, lastUsedAt, pinned, spaceIDs, spaceNotes
+    case sourceBundleID, sourceAppName, contentHash, text, rtfData
+    case imageFileName, imageUTTypeIdentifier, imageWidth, imageHeight
+    case fileURLs, urlString, colorHex, recognizedText, byteSize
+}
+
+extension ClipItem {
+    /// Defaults keep older history files readable when newer releases add stored properties.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: ClipItemCodingKey.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        kind = try c.decode(ClipKind.self, forKey: .kind)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt) ?? createdAt
+        pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        spaceIDs = try c.decodeIfPresent([UUID].self, forKey: .spaceIDs) ?? []
+        spaceNotes = try c.decodeIfPresent([String: String].self, forKey: .spaceNotes)
+        sourceBundleID = try c.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        sourceAppName = try c.decodeIfPresent(String.self, forKey: .sourceAppName)
+        contentHash = try c.decode(String.self, forKey: .contentHash)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        rtfData = try c.decodeIfPresent(Data.self, forKey: .rtfData)
+        imageFileName = try c.decodeIfPresent(String.self, forKey: .imageFileName)
+        imageUTTypeIdentifier = try c.decodeIfPresent(String.self, forKey: .imageUTTypeIdentifier)
+        imageWidth = try c.decodeIfPresent(Int.self, forKey: .imageWidth)
+        imageHeight = try c.decodeIfPresent(Int.self, forKey: .imageHeight)
+        fileURLs = try c.decodeIfPresent([String].self, forKey: .fileURLs)
+        urlString = try c.decodeIfPresent(String.self, forKey: .urlString)
+        colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
+        recognizedText = try c.decodeIfPresent(String.self, forKey: .recognizedText)
+        byteSize = try c.decodeIfPresent(Int.self, forKey: .byteSize) ?? 0
     }
 }

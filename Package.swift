@@ -19,6 +19,14 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "Sources/BoardClip"
+        ),
+        .testTarget(
+            name: "BoardClipTests",
+            dependencies: [
+                "BoardClip",
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
+            path: "Tests/BoardClipTests"
         )
     ],
     swiftLanguageModes: [.v5]

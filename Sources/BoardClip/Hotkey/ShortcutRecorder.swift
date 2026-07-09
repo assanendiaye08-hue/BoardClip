@@ -42,17 +42,25 @@ struct ShortcutRecorder: View {
     @Bindable var settings = Settings.shared
     @State private var recording = false
     @State private var monitor: Any?
+    @State private var registrationError: String?
 
     var body: some View {
-        Button {
-            recording ? stop() : start()
-        } label: {
-            Text(recording ? "Type a shortcut… (⎋ to cancel)"
-                           : KeyDisplay.string(keyCode: settings.hotKeyCode, flags: settings.modifierFlags))
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .frame(minWidth: 150)
+        VStack(alignment: .trailing, spacing: 4) {
+            Button {
+                recording ? stop() : start()
+            } label: {
+                Text(recording ? "Type a shortcut… (⎋ to cancel)"
+                               : KeyDisplay.string(keyCode: settings.hotKeyCode, flags: settings.modifierFlags))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .frame(minWidth: 150)
+            }
+            .buttonStyle(.glass)
+            if let registrationError {
+                Text(registrationError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
-        .buttonStyle(.glass)
         .onDisappear { stop() }
     }
 
@@ -62,9 +70,18 @@ struct ShortcutRecorder: View {
             if Int(event.keyCode) == kVK_Escape { stop(); return nil }
             let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
             guard !mods.isEmpty else { return nil } // require at least one modifier
+            let previousCode = settings.hotKeyCode
+            let previousModifiers = settings.hotKeyModifiers
             settings.hotKeyCode = Int(event.keyCode)
             settings.hotKeyModifiers = mods.rawValue
-            AppDelegate.shared?.reloadHotKey()
+            if AppDelegate.shared?.reloadHotKey() == false {
+                settings.hotKeyCode = previousCode
+                settings.hotKeyModifiers = previousModifiers
+                AppDelegate.shared?.reloadHotKey()
+                registrationError = "That shortcut is already in use."
+            } else {
+                registrationError = nil
+            }
             stop()
             return nil
         }

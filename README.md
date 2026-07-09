@@ -83,9 +83,10 @@ To get a Gatekeeper-clean first launch later, add a paid Apple Developer ID and 
 
 ## Privacy
 
-BoardClip is **non-sandboxed** and stores everything **locally** at
-`~/Library/Application Support/BoardClip/`. Nothing leaves your Mac (the only network call is the
-update check). It needs **Accessibility** (to paste) and, when you use Save-to-Photos, **Photos** add access.
+BoardClip is **non-sandboxed** and stores clipboard history **locally** at
+`~/Library/Application Support/BoardClip/`. Update checks contact GitHub, and the explicit
+**Search Google for Clip** action sends the selected clip text to Google. It needs **Accessibility**
+to paste and, when you use Save to Photos, **Photos** add access.
 
 ## License
 

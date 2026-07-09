@@ -1,8 +1,11 @@
 # BoardClip — build & packaging
-.PHONY: build run release bundle dmg cert clean
+.PHONY: build test run release bundle dmg cert clean
 
 build:
 	swift build
+
+test:
+	./Scripts/test.sh
 
 run:
 	./Scripts/run.sh debug

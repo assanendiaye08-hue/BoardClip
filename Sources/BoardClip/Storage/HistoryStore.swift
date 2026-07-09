@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import UniformTypeIdentifiers
 
 /// The clipboard history: an in-memory, recency-ordered list backed by an atomic JSON file.
 /// Newest item is always at index 0. Image bytes are stored as external blobs.
@@ -7,12 +8,14 @@ import Observation
 @Observable
 final class HistoryStore {
     private(set) var items: [ClipItem] = []
+    private(set) var recoveryNotice: String?
 
     @ObservationIgnored private let settings: Settings
     @ObservationIgnored private var saveWork: DispatchWorkItem?
     @ObservationIgnored private let ioQueue = DispatchQueue(label: "com.boardclip.history.io")
     @ObservationIgnored private var imageTextRecognitionTask: Task<Void, Never>?
     @ObservationIgnored private var pendingImageTextRecognitionIDs = Set<UUID>()
+    @ObservationIgnored private var persistenceBlocked = false
 
     init(settings: Settings) {
         self.settings = settings
@@ -22,16 +25,44 @@ final class HistoryStore {
 
     func load() {
         AppPaths.ensure()
-        guard let data = try? Data(contentsOf: AppPaths.historyFile) else { return }
-        if let decoded = try? JSONDecoder.iso.decode([ClipItem].self, from: data) {
-            items = decoded.sorted { $0.lastUsedAt > $1.lastUsedAt }
-            queueImageTextRecognitionBackfill()
+        if let data = try? Data(contentsOf: AppPaths.historyFile) {
+            if let decoded = decodeHistory(data) {
+                applyLoadedItems(decoded)
+                return
+            }
+
+            guard preserveForRecovery(data) else {
+                persistenceBlocked = true
+                recoveryNotice = "BoardClip could not safely preserve a damaged history file, so saving is paused to protect it."
+                return
+            }
+            if let backup = try? Data(contentsOf: AppPaths.historyBackupFile),
+               let decoded = decodeHistory(backup) {
+                recoveryNotice = "BoardClip recovered your clips from its safety backup."
+                applyLoadedItems(decoded)
+                write(items)
+            } else {
+                recoveryNotice = "BoardClip preserved a damaged history file for recovery instead of overwriting it."
+            }
+            return
         }
+
+        if let backup = try? Data(contentsOf: AppPaths.historyBackupFile),
+           let decoded = decodeHistory(backup) {
+            recoveryNotice = "BoardClip restored a missing history file from its safety backup."
+            applyLoadedItems(decoded)
+            write(items)
+        }
+    }
+
+    func clearRecoveryNotice() {
+        recoveryNotice = nil
     }
 
     /// Debounced save. All writes funnel through `ioQueue` (serial) so a debounced save can never
     /// clobber a later `flush()`.
     private func scheduleSave() {
+        guard !persistenceBlocked else { return }
         saveWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
@@ -45,26 +76,25 @@ final class HistoryStore {
 
     private func write(_ snapshot: [ClipItem]) {
         ioQueue.async {
-            guard let data = try? JSONEncoder.iso.encode(snapshot) else { return }
-            try? data.write(to: AppPaths.historyFile, options: .atomic)
+            Self.persist(snapshot)
         }
     }
 
     /// Force an immediate save (e.g. on quit). Runs after any in-flight debounced write, so the
     /// newest data wins.
     func flush() {
+        guard !persistenceBlocked else { return }
         saveWork?.cancel()
         let snapshot = items
         ioQueue.sync {
-            guard let data = try? JSONEncoder.iso.encode(snapshot) else { return }
-            try? data.write(to: AppPaths.historyFile, options: .atomic)
+            Self.persist(snapshot)
         }
     }
 
     // MARK: Ingest
 
     @discardableResult
-    func ingest(_ draft: PasteboardDraft) -> ClipItem {
+    func ingest(_ draft: PasteboardDraft) -> ClipItem? {
         // De-dupe: a re-copy promotes the existing item instead of adding a duplicate.
         if let idx = items.firstIndex(where: { $0.contentHash == draft.contentHash }) {
             var existing = items.remove(at: idx)
@@ -77,8 +107,12 @@ final class HistoryStore {
 
         var imageFileName: String?
         if let png = draft.imagePNG {
-            let name = "\(UUID().uuidString).png"
-            try? png.write(to: AppPaths.blobURL(name), options: .atomic)
+            let ext = draft.imageUTTypeIdentifier == UTType.jpeg.identifier ? "jpg" : "png"
+            let name = "\(UUID().uuidString).\(ext)"
+            guard (try? png.write(to: AppPaths.blobURL(name), options: .atomic)) != nil else {
+                NSLog("[BoardClip] Could not persist image clip")
+                return nil
+            }
             imageFileName = name
         }
 
@@ -88,7 +122,8 @@ final class HistoryStore {
             sourceBundleID: draft.sourceBundleID, sourceAppName: draft.sourceAppName,
             contentHash: draft.contentHash,
             text: draft.text, rtfData: draft.rtfData,
-            imageFileName: imageFileName, imageWidth: draft.imageWidth, imageHeight: draft.imageHeight,
+            imageFileName: imageFileName, imageUTTypeIdentifier: draft.imageUTTypeIdentifier,
+            imageWidth: draft.imageWidth, imageHeight: draft.imageHeight,
             fileURLs: draft.fileURLs, urlString: draft.urlString, colorHex: draft.colorHex,
             byteSize: byteSize(of: draft)
         )
@@ -277,6 +312,37 @@ final class HistoryStore {
         (d.text?.utf8.count ?? 0) + (d.rtfData?.count ?? 0) + (d.imagePNG?.count ?? 0)
     }
 
+    private func decodeHistory(_ data: Data) -> [ClipItem]? {
+        try? JSONDecoder.iso.decode([ClipItem].self, from: data)
+    }
+
+    private func applyLoadedItems(_ decoded: [ClipItem]) {
+        items = decoded.sorted { $0.lastUsedAt > $1.lastUsedAt }
+        queueImageTextRecognitionBackfill()
+    }
+
+    private func preserveForRecovery(_ data: Data) -> Bool {
+        let url = AppPaths.historyRecoveryFile()
+        do {
+            try data.write(to: url, options: .atomic)
+            NSLog("[BoardClip] Preserved unreadable history at \(url.path)")
+            return true
+        } catch {
+            NSLog("[BoardClip] Could not preserve unreadable history: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private nonisolated static func persist(_ snapshot: [ClipItem]) {
+        do {
+            let data = try JSONEncoder.iso.encode(snapshot)
+            try data.write(to: AppPaths.historyFile, options: .atomic)
+            try data.write(to: AppPaths.historyBackupFile, options: .atomic)
+        } catch {
+            NSLog("[BoardClip] Could not save history: \(error.localizedDescription)")
+        }
+    }
+
     private func queueImageTextRecognitionBackfill() {
         for item in items {
             queueImageTextRecognitionIfNeeded(for: item)
@@ -348,17 +414,17 @@ private struct ImageTextRecognitionTarget {
 }
 
 extension JSONEncoder {
-    static let iso: JSONEncoder = {
+    static var iso: JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
         return e
-    }()
+    }
 }
 
 extension JSONDecoder {
-    static let iso: JSONDecoder = {
+    static var iso: JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d
-    }()
+    }
 }

@@ -39,6 +39,7 @@ final class ClipboardMonitor {
         let count = pasteboard.changeCount
         guard count != lastChangeCount else { return }
         lastChangeCount = count
+        guard settings.captureClipboard else { return }
         if count == suppressedChangeCount { return }
         if let draft = PasteboardReader.read(pasteboard, settings: settings) {
             onNewDraft?(draft)

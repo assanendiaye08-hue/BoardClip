@@ -26,6 +26,23 @@ jobs:
       - name: Select Xcode 26
         run: sudo xcode-select -s /Applications/Xcode_26.app 2>/dev/null || true
 
+      - name: Validate release metadata
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="$(grep -Eo 'static let version = "[^"]+"' Sources/BoardClip/App/AppInfo.swift | sed -E 's/.*"([^"]+)".*/\1/')"
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "Release tag $TAG does not match BoardClip version $VERSION."
+            exit 1
+          fi
+          if [ -z "$SPARKLE_KEY" ]; then
+            echo "Missing SPARKLE_ED_PRIVATE_KEY; refusing to publish an update without a signed appcast."
+            exit 1
+          fi
+
+      - name: Run tests
+        run: ./Scripts/test.sh
+
       - name: Import code-signing identity
         env:
           BOARDCLIP_CODESIGN_P12: ${{ secrets.BOARDCLIP_CODESIGN_P12 }}
@@ -59,7 +76,6 @@ jobs:
         run: ./Scripts/make-dmg.sh release
 
       - name: Sign appcast (EdDSA)
-        if: ${{ env.SPARKLE_KEY != '' }}
         run: |
           ./Scripts/sign-update.sh tools   # fetch the Sparkle CLI tools
           TOOLS=.build/sparkle-tools/bin
@@ -71,6 +87,13 @@ jobs:
             updates/
           cp updates/appcast.xml build/appcast.xml
           rm -f ed_key
+
+      - name: Verify release assets
+        run: |
+          test -s build/appcast.xml
+          test -f "build/BoardClip-${{ steps.v.outputs.version }}.dmg"
+          hdiutil verify "build/BoardClip-${{ steps.v.outputs.version }}.dmg"
+          grep -q "sparkle:edSignature" build/appcast.xml
 
       - name: Create GitHub Release
         env:

@@ -72,7 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Public hooks (used by Settings / menu)
 
-    func reloadHotKey() {
+    @discardableResult
+    func reloadHotKey() -> Bool {
         HotKeyManager.shared.register(keyCode: settings.hotKeyCode, flags: settings.modifierFlags)
     }
 
@@ -92,14 +93,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater?.checkForUpdates()
     }
 
-    private func showOnboardingIfNeeded() {
-        // Register in the Accessibility list (so the toggle exists) whenever we're not yet trusted.
-        if !Permissions.accessibilityGranted {
-            Permissions.promptAccessibility()
+    func confirmClearHistory() {
+        let alert = NSAlert()
+        alert.messageText = "Clear Clipboard History?"
+        alert.informativeText = "Pinned clips and clips saved to a Space will be kept."
+        alert.addButton(withTitle: "Clear History")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .warning
+
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            store.clearAll()
         }
+    }
+
+    private func showOnboardingIfNeeded() {
         let key = "didOnboard"
         if !UserDefaults.standard.bool(forKey: key) {
-            UserDefaults.standard.set(true, forKey: key)
             OnboardingWindow.show()
         }
     }
