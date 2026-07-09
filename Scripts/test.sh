@@ -7,8 +7,10 @@ cd "$ROOT"
 
 swift build --build-tests --disable-automatic-resolution
 BIN_DIR="$(swift build --disable-automatic-resolution --show-bin-path)"
-TEST_BUNDLE="$BIN_DIR/BoardClipTests.xctest"
-SPARKLE="$BIN_DIR/Sparkle.framework"
+TEST_BUNDLE="$(find "$BIN_DIR" -maxdepth 1 -type d \
+  \( -name 'BoardClipTests.xctest' -o -name 'BoardClipPackageTests.xctest' \) \
+  -print -quit)"
+SPARKLE="$(find "$BIN_DIR" -maxdepth 2 -type d -name 'Sparkle.framework' -print -quit)"
 
 if [ ! -d "$TEST_BUNDLE" ] || [ ! -d "$SPARKLE" ]; then
   echo "Could not locate the BoardClip test bundle or Sparkle.framework" >&2
