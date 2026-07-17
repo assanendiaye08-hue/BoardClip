@@ -63,4 +63,41 @@ final class BoardClipTests: XCTestCase {
         )
         XCTAssertEqual(item.imagePasteboardType.rawValue, UTType.jpeg.identifier)
     }
+
+    @MainActor
+    func testPhotosBatchKeepsOnlyUniqueImageFiles() {
+        let first = ClipItem(
+            kind: .image,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "first",
+            imageFileName: "first.png"
+        )
+        let duplicate = ClipItem(
+            kind: .image,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "duplicate",
+            imageFileName: "first.png"
+        )
+        let second = ClipItem(
+            kind: .image,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "second",
+            imageFileName: "second.jpg"
+        )
+        let text = ClipItem(
+            kind: .text,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "text",
+            text: "not an image"
+        )
+
+        XCTAssertEqual(
+            ItemActions.photoFileNames(in: [first, duplicate, text, second]),
+            ["first.png", "second.jpg"]
+        )
+    }
 }

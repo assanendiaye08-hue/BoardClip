@@ -16,7 +16,7 @@ struct HUDView: View {
     var onToggleSpace: (UUID, ClipItem) -> Void
     var onEditSpaceNote: (ClipItem, UUID) -> Void
     var onEditText: (ClipItem) -> Void
-    var onSaveToPhotos: (ClipItem) -> Void
+    var onSaveToPhotos: ([ClipItem]) -> Void
     var onResearch: (ClipItem) -> Void
     var onReveal: (ClipItem) -> Void
     var onTransformPaste: (ClipItem, ItemActions.Transform) -> Void
@@ -53,13 +53,13 @@ struct HUDView: View {
 
     var body: some View {
         let visible = filtered   // compute the fuzzy filter once per render, not 4×
-        let multiItems = multiSelectedItems()
+        let selectedItems = multiSelectedItems()
         return GlassEffectContainer {
             VStack(spacing: 12) {
                 header(count: visible.count)
                 spacePills
                 if visible.isEmpty { emptyState } else { strip(visible) }
-                footer(selectedCount: multiItems.count)
+                footer(selectedItems: selectedItems)
             }
             .padding(.horizontal, 18)
             .padding(.top, 12)
@@ -257,7 +257,7 @@ struct HUDView: View {
 
     // MARK: Footer
 
-    private func footer(selectedCount: Int) -> some View {
+    private func footer(selectedItems: [ClipItem]) -> some View {
         Group {
             if let message = session.statusMessage {
                 HStack(spacing: 12) {
@@ -268,20 +268,23 @@ struct HUDView: View {
                     hint("esc", "Close")
                 }
             } else {
-                footerControls(selectedCount: selectedCount)
+                footerControls(selectedItems: selectedItems)
             }
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
     }
 
-    private func footerControls(selectedCount: Int) -> some View {
-        HStack(spacing: 12) {
-            if selectedCount > 0 {
+    private func footerControls(selectedItems: [ClipItem]) -> some View {
+        let pasteCount = selectedItems.filter(canMultiPaste).count
+        let imageCount = selectedItems.filter(canSaveToPhotos).count
+
+        return HStack(spacing: 12) {
+            if pasteCount > 0 {
                 Button {
                     pasteMultiSelected()
                 } label: {
-                    Label("Paste \(selectedCount)", systemImage: "square.stack.3d.up.fill")
+                    Label("Paste \(pasteCount)", systemImage: "square.stack.3d.up.fill")
                         .font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -290,7 +293,24 @@ struct HUDView: View {
                 .background(.tint, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .foregroundStyle(.white)
                 .help("Paste marked clips together")
+            }
 
+            if imageCount > 0 {
+                Button {
+                    saveSelectedImages()
+                } label: {
+                    Label("Add \(imageCount) to Photos", systemImage: "photo.on.rectangle.angled")
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
+                .background(Color(nsColor: .systemPink), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .foregroundStyle(.white)
+                .help("Add marked images to Photos")
+            }
+
+            if !selectedItems.isEmpty {
                 Button {
                     multiSelectedIDs.removeAll()
                 } label: {
@@ -305,7 +325,7 @@ struct HUDView: View {
             }
 
             hint("⌘1–9", "Paste")
-            hint("↩", selectedCount > 0 ? "Paste marked" : "Paste selected")
+            hint("↩", returnKeyHint(pasteCount: pasteCount, imageCount: imageCount))
             hint("space", "Mark")
             hint("←/→", "Select")
             hint("⌥", "Paste as text")
@@ -313,6 +333,12 @@ struct HUDView: View {
             Spacer()
             hint("esc", "Close")
         }
+    }
+
+    private func returnKeyHint(pasteCount: Int, imageCount: Int) -> String {
+        if pasteCount > 0 { return "Paste marked" }
+        if imageCount > 0 { return "Add to Photos" }
+        return "Paste selected"
     }
 
     private func hint(_ key: String, _ label: String) -> some View {
@@ -347,14 +373,26 @@ struct HUDView: View {
     @ViewBuilder private func contextMenu(for item: ClipItem) -> some View {
         Button("Paste") { onPaste(item, false) }
         Button("Paste as Plain Text") { onPaste(item, true) }
-        if canMultiPaste(item) {
-            Button(isMultiSelected(item) ? "Remove from Multi-Paste" : "Select for Multi-Paste") {
+        if canSelectForBatchAction(item) {
+            Button(isMultiSelected(item) ? "Remove from Selection" : "Select for Multiple Actions") {
                 toggleMultiSelection(item)
             }
         }
-        if !multiSelectedItems().isEmpty {
-            Button("Paste Selected Clips") { pasteMultiSelected() }
-            Button("Clear Multi-Paste Selection") { multiSelectedIDs.removeAll() }
+        let selectedItems = multiSelectedItems()
+        let selectedPasteCount = selectedItems.filter(canMultiPaste).count
+        let selectedImageCount = selectedItems.filter(canSaveToPhotos).count
+        if selectedPasteCount > 0 {
+            Button("Paste \(selectedPasteCount) Selected Clip\(selectedPasteCount == 1 ? "" : "s")") {
+                pasteMultiSelected()
+            }
+        }
+        if selectedImageCount > 0 {
+            Button("Add \(selectedImageCount) Selected Image\(selectedImageCount == 1 ? "" : "s") to Photos") {
+                saveSelectedImages()
+            }
+        }
+        if !selectedItems.isEmpty {
+            Button("Clear Selection") { multiSelectedIDs.removeAll() }
         }
         if item.isTextEditable {
             Button("Edit Text…") { onEditText(item) }
@@ -384,7 +422,7 @@ struct HUDView: View {
                 }
             }
         }
-        if item.kind == .image { Button("Save to Photos") { onSaveToPhotos(item) } }
+        if item.kind == .image { Button("Add to Photos") { onSaveToPhotos([item]) } }
         if item.kind == .file { Button("Reveal in Finder") { onReveal(item) } }
         if !item.bestPlainText.isEmpty { Button("Search Google for Clip…") { onResearch(item) } }
         Divider()
@@ -395,8 +433,14 @@ struct HUDView: View {
 
     private func pasteSelected() {
         let marked = multiSelectedItems()
-        if !marked.isEmpty {
-            pasteMultiSelected(marked)
+        let markedPasteItems = marked.filter(canMultiPaste)
+        if !markedPasteItems.isEmpty {
+            pasteMultiSelected(markedPasteItems)
+            return
+        }
+        let markedImages = marked.filter(canSaveToPhotos)
+        if !markedImages.isEmpty {
+            saveSelectedImages(markedImages)
             return
         }
 
@@ -458,7 +502,7 @@ struct HUDView: View {
     }
 
     private func toggleMultiSelection(_ item: ClipItem) {
-        guard canMultiPaste(item) else { return }
+        guard canSelectForBatchAction(item) else { return }
 
         if let index = multiSelectedIDs.firstIndex(of: item.id) {
             multiSelectedIDs.remove(at: index)
@@ -475,7 +519,10 @@ struct HUDView: View {
         let itemsByID = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
         var seen = Set<UUID>()
         return multiSelectedIDs.compactMap { id in
-            guard !seen.contains(id), let item = itemsByID[id], canMultiPaste(item) else { return nil }
+            guard !seen.contains(id),
+                  let item = itemsByID[id],
+                  canSelectForBatchAction(item)
+            else { return nil }
             seen.insert(id)
             return item
         }
@@ -488,6 +535,24 @@ struct HUDView: View {
 
     private func canMultiPaste(_ item: ClipItem) -> Bool {
         !item.bestPlainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func canSaveToPhotos(_ item: ClipItem) -> Bool {
+        item.kind == .image && !(item.imageFileName?.isEmpty ?? true)
+    }
+
+    private func canSelectForBatchAction(_ item: ClipItem) -> Bool {
+        canMultiPaste(item) || canSaveToPhotos(item)
+    }
+
+    private func saveSelectedImages() {
+        saveSelectedImages(multiSelectedItems().filter(canSaveToPhotos))
+    }
+
+    private func saveSelectedImages(_ items: [ClipItem]) {
+        guard !items.isEmpty else { return }
+        multiSelectedIDs.removeAll()
+        onSaveToPhotos(items)
     }
 
     private func selectHoveredClip(_ index: Int) {
@@ -591,7 +656,7 @@ struct HUDView: View {
     private func accessibilityValue(for item: ClipItem, index: Int) -> String {
         var states = ["Clip \(index + 1)"]
         if index == selected { states.append("keyboard focus") }
-        if isMultiSelected(item) { states.append("marked for multi-paste") }
+        if isMultiSelected(item) { states.append("marked for multiple actions") }
         if item.pinned { states.append("pinned") }
         return states.joined(separator: ", ")
     }
