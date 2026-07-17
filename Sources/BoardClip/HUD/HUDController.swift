@@ -82,7 +82,7 @@ final class HUDController: NSObject, NSWindowDelegate {
             onToggleSpace: { [weak self] sid, item in self?.store.toggleSpace(sid, for: item) },
             onEditSpaceNote: { [weak self] item, sid in self?.editSpaceNote(item, in: sid) },
             onEditText: { [weak self] item in self?.editText(item) },
-            onSaveToPhotos: { item in ItemActions.saveToPhotos(item) },
+            onSaveToPhotos: { items in ItemActions.saveToPhotos(items) },
             onResearch: { [weak self] item in self?.hide(); ItemActions.research(item) },
             onReveal: { [weak self] item in self?.hide(); ItemActions.revealInFinder(item) },
             onTransformPaste: { [weak self] item, transform in self?.transformPaste(item, transform) },

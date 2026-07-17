@@ -4,16 +4,21 @@ import Photos
 /// Per-item smart actions surfaced in the HUD context menu.
 @MainActor
 enum ItemActions {
-    /// Save an image clip into the Photos library (add-only permission), with audible feedback.
+    /// Save image clips into the Photos library in one add-only transaction.
     /// On denied/missing permission it opens the Photos privacy pane so the user can grant access.
-    static func saveToPhotos(_ item: ClipItem) {
-        guard item.kind == .image, let name = item.imageFileName else { NSSound.beep(); return }
-        let url = AppPaths.blobURL(name)
+    static func saveToPhotos(_ items: [ClipItem]) {
+        let urls = photoFileNames(in: items)
+            .map(AppPaths.blobURL)
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else { NSSound.beep(); return }
+
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             switch status {
             case .authorized, .limited:
                 PHPhotoLibrary.shared().performChanges {
-                    PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
+                    for url in urls {
+                        PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
+                    }
                 } completionHandler: { ok, error in
                     DispatchQueue.main.async {
                         if ok {
@@ -33,6 +38,18 @@ enum ItemActions {
                     }
                 }
             }
+        }
+    }
+
+    static func photoFileNames(in items: [ClipItem]) -> [String] {
+        var seen = Set<String>()
+        return items.compactMap { item in
+            guard item.kind == .image,
+                  let name = item.imageFileName,
+                  !name.isEmpty,
+                  seen.insert(name).inserted
+            else { return nil }
+            return name
         }
     }
 
