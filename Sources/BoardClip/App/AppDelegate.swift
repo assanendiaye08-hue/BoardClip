@@ -44,7 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hud = HUDController(store: store, spaceStore: spaceStore, settings: settings, monitor: monitor)
 
         HotKeyManager.shared.onActivate = { [weak self] in self?.hud.toggle() }
+        HotKeyManager.shared.onQuickPaste = { [weak self] slot in self?.quickPaste(slot: slot) }
         HotKeyManager.shared.register(keyCode: settings.hotKeyCode, flags: settings.modifierFlags)
+        reloadQuickPasteHotKeys()
 
         updater = UpdaterController()
 
@@ -58,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        HotKeyManager.shared.unregisterQuickPasteShortcuts()
         store?.flush()
     }
 
@@ -77,6 +80,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.register(keyCode: settings.hotKeyCode, flags: settings.modifierFlags)
     }
 
+    func reloadQuickPasteHotKeys() {
+        guard settings.quickPasteShortcutsEnabled else {
+            HotKeyManager.shared.unregisterQuickPasteShortcuts()
+            return
+        }
+        let unavailable = HotKeyManager.shared.registerQuickPasteShortcuts()
+        if !unavailable.isEmpty {
+            NSLog("[BoardClip] Direct paste shortcuts unavailable for slots: %@", unavailable.map(String.init).joined(separator: ", "))
+        }
+    }
+
     func setScreenshotWatching(_ enabled: Bool) {
         if enabled { screenshotWatcher?.start() } else { screenshotWatcher?.stop() }
     }
@@ -91,6 +105,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func checkForUpdates() {
         updater?.checkForUpdates()
+    }
+
+    private func quickPaste(slot: Int) {
+        monitor.pollNow()
+        guard let destination = NSWorkspace.shared.frontmostApplication,
+              destination.bundleIdentifier != AppInfo.bundleID,
+              let item = QuickPasteShortcut.item(at: slot, in: store.items)
+        else {
+            NSSound.beep()
+            return
+        }
+
+        hud.hide()
+        let canAutoPaste = Paster.canAutoPaste
+        let wrote = Paster.paste(
+            item,
+            asPlainText: settings.pasteAsPlainDefault,
+            previousApp: destination,
+            monitor: monitor,
+            store: store
+        )
+        if !wrote || !canAutoPaste { NSSound.beep() }
     }
 
     func confirmClearHistory() {

@@ -44,6 +44,39 @@ final class BoardClipTests: XCTestCase {
         )
     }
 
+    func testQuickPasteHotKeyIDsMapToNineZeroBasedSlots() {
+        XCTAssertEqual(QuickPasteShortcut.hotKeyID(for: 0), 101)
+        XCTAssertEqual(QuickPasteShortcut.hotKeyID(for: 8), 109)
+        XCTAssertNil(QuickPasteShortcut.hotKeyID(for: -1))
+        XCTAssertNil(QuickPasteShortcut.hotKeyID(for: 9))
+
+        XCTAssertEqual(QuickPasteShortcut.slot(forHotKeyID: 101), 0)
+        XCTAssertEqual(QuickPasteShortcut.slot(forHotKeyID: 109), 8)
+        XCTAssertNil(QuickPasteShortcut.slot(forHotKeyID: 100))
+        XCTAssertNil(QuickPasteShortcut.slot(forHotKeyID: 110))
+    }
+
+    func testQuickPasteSelectsByRecencyPosition() {
+        let newest = ClipItem(
+            kind: .text,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "newest",
+            text: "newest"
+        )
+        let older = ClipItem(
+            kind: .text,
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            contentHash: "older",
+            text: "older"
+        )
+
+        XCTAssertEqual(QuickPasteShortcut.item(at: 0, in: [newest, older])?.id, newest.id)
+        XCTAssertEqual(QuickPasteShortcut.item(at: 1, in: [newest, older])?.id, older.id)
+        XCTAssertNil(QuickPasteShortcut.item(at: 2, in: [newest, older]))
+    }
+
     @MainActor
     func testResearchURLKeepsEntireClipInOneQueryValue() throws {
         let url = try XCTUnwrap(ItemActions.researchURL(for: "alpha & beta = gamma"))

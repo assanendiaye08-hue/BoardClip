@@ -35,6 +35,9 @@ final class ClipboardMonitor {
 
     func restart() { start() }
 
+    /// Capture a copy made immediately before a quick-paste shortcut, without waiting for the timer.
+    func pollNow() { poll() }
+
     private func poll() {
         let count = pasteboard.changeCount
         guard count != lastChangeCount else { return }
