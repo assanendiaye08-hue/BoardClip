@@ -123,6 +123,23 @@ private struct ShortcutSettings: View {
                 Text("Press the shortcut anywhere to open the clipboard bar.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Direct Paste") {
+                Toggle("Enable direct paste shortcuts", isOn: $settings.quickPasteShortcutsEnabled)
+                    .onChange(of: settings.quickPasteShortcutsEnabled) { _, _ in
+                        AppDelegate.shared?.reloadQuickPasteHotKeys()
+                    }
+                HStack {
+                    Text("Newest clip")
+                    Spacer()
+                    Text("⌘⌥1").font(.system(.body, design: .rounded).weight(.medium))
+                }
+                HStack {
+                    Text("Clips 2 through 9")
+                    Spacer()
+                    Text("⌘⌥2–9").font(.system(.body, design: .rounded).weight(.medium))
+                }
+                .disabled(!settings.quickPasteShortcutsEnabled)
+            }
             Section("Monitoring") {
                 VStack(alignment: .leading) {
                     Text("Check the clipboard every \(settings.pollInterval, specifier: "%.1f")s")

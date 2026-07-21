@@ -14,6 +14,7 @@ Press **⌘⌥V**, pick a clip, and it pastes straight into whatever you were ty
 ## Features
 
 - **Top-of-screen glass HUD** — summon with **⌘⌥V**, recency-ordered, click (or **⌘1–9**) to paste into the focused field, then it gets out of the way.
+- **Direct quick paste** — press **⌘⌥1–9** to paste one of the nine newest clips without opening the HUD.
 - **Everything you copy** — text, rich text, links, colors, images, and files, each with its own preview.
 - **Screenshots, automatically** — ⌘⇧4 file screenshots are pulled in from your screenshot folder, not just clipboard ones.
 - **Spaces** — durable boards to keep clips forever, separate from the rolling history.
@@ -36,7 +37,8 @@ Press **⌘⌥V**, pick a clip, and it pastes straight into whatever you were ty
 | Key | Action |
 |---|---|
 | **⌘⌥V** | Open the clipboard bar (rebindable in Settings) |
-| **⌘1 – ⌘9** | Paste the Nth clip |
+| **⌘⌥1 – ⌘⌥9** | Directly paste the Nth newest clip without opening the bar |
+| **⌘1 – ⌘9** | Paste the Nth clip while the bar is open |
 | **↩** | Paste the selected clip |
 | **⌥** + click/↩ | Paste as plain text |
 | **esc** | Close the bar |

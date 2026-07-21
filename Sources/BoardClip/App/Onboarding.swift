@@ -57,7 +57,7 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 row(icon: "command", title: "Summon it anywhere",
-                    detail: "Press \(KeyDisplay.string(keyCode: Settings.shared.hotKeyCode, flags: Settings.shared.modifierFlags)) to open the clipboard bar. Click a clip — or press ⌘1–9 — to paste.")
+                    detail: "Press \(KeyDisplay.string(keyCode: Settings.shared.hotKeyCode, flags: Settings.shared.modifierFlags)) to open the clipboard bar. Use ⌘⌥1–9 to paste one of your nine newest clips directly.")
 
                 permissionRow
 
