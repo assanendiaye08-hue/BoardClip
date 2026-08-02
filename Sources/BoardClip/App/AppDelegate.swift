@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         HotKeyManager.shared.unregisterQuickPasteShortcuts()
+        ImageDragProvider.cleanupExports()
         store?.flush()
     }
 

@@ -39,9 +39,32 @@ enum ImageDragProvider {
     }
 
     static func itemProvider(for descriptor: ImageDragDescriptor) -> NSItemProvider {
-        // openInPlace=false makes the drag destination receive a copy, never BoardClip's source blob.
+        itemProvider(for: descriptor, exportRoot: defaultExportRoot)
+    }
+
+    static func itemProvider(for descriptor: ImageDragDescriptor, exportRoot: URL) -> NSItemProvider {
+        guard let exportURL = try? makeExportCopy(for: descriptor, in: exportRoot) else {
+            NSLog("[BoardClip] Could not create a temporary image drag export")
+            return imageItemProvider(fileURL: descriptor.fileURL, descriptor: descriptor)
+        }
+
+        let provider = imageItemProvider(fileURL: exportURL, descriptor: descriptor)
+        // Browser upload controls commonly require a concrete file URL in addition to image data.
+        provider.registerObject(exportURL as NSURL, visibility: .all)
+        return provider
+    }
+
+    static func cleanupExports() {
+        try? FileManager.default.removeItem(at: defaultExportRoot)
+    }
+
+    private static func imageItemProvider(
+        fileURL: URL,
+        descriptor: ImageDragDescriptor
+    ) -> NSItemProvider {
+        // openInPlace=false makes compatible destinations receive another copy of the export.
         let provider = NSItemProvider(
-            contentsOf: descriptor.fileURL,
+            contentsOf: fileURL,
             contentType: descriptor.contentType,
             openInPlace: false,
             coordinated: false,
@@ -49,6 +72,29 @@ enum ImageDragProvider {
         )
         provider.suggestedName = descriptor.suggestedName
         return provider
+    }
+
+    private static func makeExportCopy(
+        for descriptor: ImageDragDescriptor,
+        in exportRoot: URL
+    ) throws -> URL {
+        let fileManager = FileManager.default
+        let dragDirectory = exportRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: dragDirectory, withIntermediateDirectories: true)
+        let exportURL = dragDirectory.appendingPathComponent(descriptor.suggestedName)
+        do {
+            try fileManager.copyItem(at: descriptor.fileURL, to: exportURL)
+            return exportURL
+        } catch {
+            try? fileManager.removeItem(at: dragDirectory)
+            throw error
+        }
+    }
+
+    private static var defaultExportRoot: URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("BoardClip Drag Exports", isDirectory: true)
+            .appendingPathComponent(String(ProcessInfo.processInfo.processIdentifier), isDirectory: true)
     }
 
     private static func resolvedContentType(for item: ClipItem, fileURL: URL) -> UTType {
