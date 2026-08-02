@@ -188,25 +188,45 @@ final class BoardClipTests: XCTestCase {
         let sourceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("png")
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try payload.write(to: sourceURL)
-        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        defer {
+            try? FileManager.default.removeItem(at: sourceURL)
+            try? FileManager.default.removeItem(at: exportRoot)
+        }
 
         let descriptor = ImageDragDescriptor(
             fileURL: sourceURL,
             contentType: .png,
             suggestedName: "BoardClip Image.png"
         )
-        let provider = ImageDragProvider.itemProvider(for: descriptor)
+        let provider = ImageDragProvider.itemProvider(for: descriptor, exportRoot: exportRoot)
         XCTAssertEqual(provider.suggestedName, descriptor.suggestedName)
         XCTAssertTrue(provider.registeredContentTypes.contains(.png))
+        XCTAssertTrue(provider.registeredContentTypes.contains(.fileURL))
 
-        let loaded = expectation(description: "macOS loads the image drag representation")
+        let loadedImage = expectation(description: "macOS loads the image drag representation")
         _ = provider.loadFileRepresentation(for: .png, openInPlace: false) { url, isOpenInPlace, error in
             XCTAssertNil(error)
             XCTAssertFalse(isOpenInPlace)
             XCTAssertEqual(url.flatMap { try? Data(contentsOf: $0) }, payload)
-            loaded.fulfill()
+            loadedImage.fulfill()
         }
-        wait(for: [loaded], timeout: 2)
+
+        let loadedFileURL = expectation(description: "macOS loads the upload-compatible file URL")
+        _ = provider.loadObject(ofClass: NSURL.self) { object, error in
+            XCTAssertNil(error)
+            let url = object as? URL
+            XCTAssertNotNil(url)
+            XCTAssertNotEqual(url, sourceURL)
+            XCTAssertEqual(url?.lastPathComponent, descriptor.suggestedName)
+            XCTAssertTrue(url?.path.hasPrefix(exportRoot.path) == true)
+            XCTAssertEqual(url.flatMap { try? Data(contentsOf: $0) }, payload)
+            loadedFileURL.fulfill()
+        }
+
+        wait(for: [loadedImage, loadedFileURL], timeout: 2)
+        XCTAssertEqual(try Data(contentsOf: sourceURL), payload)
     }
 }
