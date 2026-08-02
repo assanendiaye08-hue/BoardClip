@@ -15,7 +15,7 @@ Press **⌘⌥V**, pick a clip, and it pastes straight into whatever you were ty
 
 - **Top-of-screen glass HUD** — summon with **⌘⌥V**, recency-ordered, click (or **⌘1–9**) to paste into the focused field, then it gets out of the way.
 - **Direct quick paste** — press **⌘⌥1–9** to paste one of the nine newest clips without opening the HUD.
-- **Everything you copy** — text, rich text, links, colors, images, and files, each with its own preview.
+- **Everything you copy** — text, rich text, links, colors, images, and files, each with its own preview. Drag image clips straight into upload boxes or other apps.
 - **Screenshots, automatically** — ⌘⇧4 file screenshots are pulled in from your screenshot folder, not just clipboard ones.
 - **Spaces** — durable boards to keep clips forever, separate from the rolling history.
 - **Smart actions** — Save image → Photos, Research a clip on the web, Reveal files in Finder, and Transform & Paste (UPPERCASE, slugify, join lines…).
