@@ -199,29 +199,7 @@ struct HUDView: View {
                 // is O(visible) instead of O(history) — fast even with hundreds of clips.
                 LazyHStack(spacing: 12) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
-                        Button { handleClipClick(item) } label: {
-                            ClipCardView(
-                                item: item,
-                                index: idx,
-                                selected: idx == selected,
-                                multiSelected: isMultiSelected(item),
-                                spaceNote: item.note(in: selectedSpace)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .id(item.id)
-                        .accessibilityLabel(accessibilityLabel(for: item))
-                        .accessibilityValue(accessibilityValue(for: item, index: idx))
-                        .accessibilityHint("Press to paste. Open the context menu for more actions.")
-                        .onHover { hovering in
-                            if hovering {
-                                hoveredIndex = idx
-                                selectHoveredClip(idx)
-                            } else if hoveredIndex == idx {
-                                hoveredIndex = nil
-                            }
-                        }
-                        .contextMenu { contextMenu(for: item) }
+                        clipButton(for: item, index: idx)
                     }
                 }
                 .padding(.horizontal, 2)
@@ -236,6 +214,47 @@ struct HUDView: View {
             }
             .onChange(of: items.map(\.id)) { _, _ in scrollSelected(in: items, proxy: proxy, animated: false) }
         }
+    }
+
+    @ViewBuilder
+    private func clipButton(for item: ClipItem, index: Int) -> some View {
+        let dragDescriptor = ImageDragProvider.descriptor(for: item)
+        let button = Button { handleClipClick(item) } label: {
+            ClipCardView(
+                item: item,
+                index: index,
+                selected: index == selected,
+                multiSelected: isMultiSelected(item),
+                spaceNote: item.note(in: selectedSpace)
+            )
+        }
+        .buttonStyle(.plain)
+        .id(item.id)
+        .accessibilityLabel(accessibilityLabel(for: item))
+        .accessibilityValue(accessibilityValue(for: item, index: index))
+        .accessibilityHint(accessibilityHint(canDrag: dragDescriptor != nil))
+        .onHover { hovering in
+            if hovering {
+                hoveredIndex = index
+                selectHoveredClip(index)
+            } else if hoveredIndex == index {
+                hoveredIndex = nil
+            }
+        }
+        .contextMenu { contextMenu(for: item) }
+
+        if let dragDescriptor {
+            button.onDrag { ImageDragProvider.itemProvider(for: dragDescriptor) }
+        } else {
+            button
+        }
+    }
+
+    private func accessibilityHint(canDrag: Bool) -> String {
+        if canDrag {
+            return "Press to paste, or drag the image into another app. Open the context menu for more actions."
+        }
+        return "Press to paste. Open the context menu for more actions."
     }
 
     private var emptyState: some View {
